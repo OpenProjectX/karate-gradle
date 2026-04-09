@@ -13,6 +13,7 @@ val verifyBasicExampleForRelease by tasks.registering(Exec::class) {
     description = "Runs the basic standalone example as a release gate"
     workingDir = rootDir
     environment("GRADLE_USER_HOME", "/data/.gradle")
+    environment("JAVA_HOME", System.getProperty("java.home"))
     commandLine(
         "./gradlew",
         "-p",
@@ -28,6 +29,7 @@ val verifyWiremockExampleForRelease by tasks.registering(Exec::class) {
     description = "Runs the WireMock standalone example as a release gate"
     workingDir = rootDir
     environment("GRADLE_USER_HOME", "/data/.gradle")
+    environment("JAVA_HOME", System.getProperty("java.home"))
     commandLine(
         "./gradlew",
         "-p",

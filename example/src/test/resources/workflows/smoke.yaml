@@ -1,0 +1,13 @@
+name: smoke
+
+features:
+  - classpath:features/user/get-user.feature
+  - classpath:features/post/create-post.feature
+
+tags:
+  include: ["@smoke"]
+  exclude: ["@ignore"]
+
+env: staging
+dataset: default
+parallel: 2

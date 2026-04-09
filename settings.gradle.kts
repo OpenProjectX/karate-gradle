@@ -32,6 +32,10 @@ val buildFiles = fileTree(rootDir) {
         "out"
     )
     exclude("**/grails3")
+    // example/ is a standalone composite build — it has its own settings.gradle.kts
+    // and uses includeBuild("..") to reference the plugin from source.
+    // Exclude it here so the root project does not also include it as a subproject.
+    exclude("example", "example/**")
     if (!excludes.isNullOrEmpty()) {
         exclude(excludes)
     }

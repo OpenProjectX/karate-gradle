@@ -22,7 +22,18 @@ Reproducible test runs keyed on `(commit, workflow, dataset, env)` — identical
 karate-gradle/
 ├── core/          # Models, services, providers (no Gradle API dependency)
 ├── plugin/        # Gradle plugin: KarateRegressionPlugin + RegressionRunTask
+├── example/       # Standalone consumer (composite build) — runs real Karate tests
 └── buildSrc/      # Convention plugins (kotlin-jvm)
+```
+
+### Running the example
+
+The `example/` project uses `includeBuild("..")` to apply the plugin directly from
+source — no publishing needed.
+
+```bash
+cd example
+../gradlew regressionRun -Pworkflow=smoke -Penv=staging
 ```
 
 ---

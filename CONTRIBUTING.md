@@ -41,6 +41,32 @@ karate-gradle/
 
 ---
 
+## Running the Example (End-to-End)
+
+`example/` is a standalone consumer project that applies the plugin via composite build —
+no `publishToMavenLocal` required. It runs real Karate tests against
+[jsonplaceholder.typicode.com](https://jsonplaceholder.typicode.com).
+
+```bash
+cd example
+
+# Smoke suite (fast, @smoke tagged scenarios only)
+../gradlew regressionRun -Pworkflow=smoke -Penv=staging
+
+# Full regression suite
+../gradlew regressionRun -Pworkflow=regression -Penv=staging
+
+# With a specific dataset
+../gradlew regressionRun -Pworkflow=regression -Penv=staging -Pdataset=default
+```
+
+Reports land in `example/build/reports/regression/karate-reports/karate-summary.html`.
+
+The `example/` directory is excluded from the root multi-project build. It has its own
+`settings.gradle.kts` with `includeBuild("..")` that pulls the plugin directly from source.
+
+---
+
 ## Testing
 
 ```bash

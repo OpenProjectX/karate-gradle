@@ -94,6 +94,16 @@ subprojects {
             }
         }
     }
+
+    // Fix implicit dependency between sign and publish tasks (Gradle 7+).
+    // java-gradle-plugin generates additional publications (pluginMaven + marker).
+    // Their sign tasks produce .asc files that publish tasks consume, but Gradle
+    // does not wire the ordering automatically across different publication names.
+    afterEvaluate {
+        tasks.withType<PublishToMavenRepository>().configureEach {
+            dependsOn(tasks.withType<Sign>())
+        }
+    }
 }
 
 

@@ -8,6 +8,45 @@ plugins {
 
 }
 
+val verifyBasicExampleForRelease by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Runs the basic standalone example as a release gate"
+    workingDir = rootDir
+    environment("GRADLE_USER_HOME", "/data/.gradle")
+    commandLine(
+        "./gradlew",
+        "-p",
+        "example",
+        ":basic:regressionRun",
+        "-Pworkflow=smoke",
+        "-Penv=staging"
+    )
+}
+
+val verifyWiremockExampleForRelease by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Runs the WireMock standalone example as a release gate"
+    workingDir = rootDir
+    environment("GRADLE_USER_HOME", "/data/.gradle")
+    commandLine(
+        "./gradlew",
+        "-p",
+        "example",
+        ":wiremock:regressionRun",
+        "-Pworkflow=regression"
+    )
+}
+
+val verifyReleaseExamples by tasks.registering {
+    group = "verification"
+    description = "Runs plugin and example verification required before release"
+    dependsOn(
+        ":plugin:test",
+        verifyBasicExampleForRelease,
+        verifyWiremockExampleForRelease
+    )
+}
+
 allprojects {
     group = "org.openprojectx.karate.gradle"
 }
@@ -124,7 +163,13 @@ nexusPublishing {
 }
 
 configure<ReleaseExtension> {
-    buildTasks.set(listOf("publishToSonatype", "closeAndReleaseSonatypeStagingRepository"))
+    buildTasks.set(
+        listOf(
+            "verifyReleaseExamples",
+            "publishToSonatype",
+            "closeAndReleaseSonatypeStagingRepository"
+        )
+    )
     versionPropertyFile.set("gradle.properties")
     tagTemplate.set("\$name-\$version")
 

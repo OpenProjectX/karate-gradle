@@ -163,15 +163,131 @@ Open an issue at [github.com/OpenProjectX/karate-gradle/issues](https://github.c
 
 ---
 
+## Publishing to Maven Local (Pre-release Inspection)
+
+Before releasing to Maven Central, publish to your local Maven repository and verify
+the artifacts look correct. This is a required step before any release.
+
+### 1. Publish all modules
+
+```bash
+./gradlew publishToMavenLocal
+```
+
+This publishes to `~/.m2/repository/org/openprojectx/karate/gradle/`.
+
+### 2. What gets published
+
+| Artifact | Coordinates | Description |
+|---|---|---|
+| Plugin jar | `org.openprojectx.karate.gradle:plugin:<version>` | The compiled plugin |
+| Plugin marker | `org.openprojectx.karate.gradle:org.openprojectx.karate.gradle.gradle.plugin:<version>` | Marker POM that maps plugin ID → coordinates |
+| Core library | `org.openprojectx.karate.gradle:core:<version>` | Models and services |
+
+### 3. Inspect the POMs
+
+```bash
+# Plugin POM — verify name, description, url, license, scm, developers are present
+cat ~/.m2/repository/org/openprojectx/karate/gradle/plugin/<version>/plugin-<version>.pom
+
+# Marker POM
+cat ~/.m2/repository/org/openprojectx/karate/gradle/org.openprojectx.karate.gradle.gradle.plugin/<version>/*.pom
+
+# Core POM
+cat ~/.m2/repository/org/openprojectx/karate/gradle/core/<version>/core-<version>.pom
+```
+
+All six Maven Central required fields must be present in every POM:
+`<name>`, `<description>`, `<url>`, `<licenses>`, `<developers>`, `<scm>`.
+
+### 4. Consume from a test project
+
+Create a minimal consumer project to verify the plugin loads and the `regressionRun` task registers:
+
+```kotlin
+// consumer/settings.gradle.kts
+pluginManagement {
+    repositories {
+        mavenLocal()          // pick up the locally published plugin
+        gradlePluginPortal()
+    }
+}
+rootProject.name = "consumer-test"
+```
+
+```kotlin
+// consumer/build.gradle.kts
+plugins {
+    id("org.openprojectx.karate.gradle") version "0.1.0-SNAPSHOT"
+}
+
+regression {
+    workflowsDir.set("src/test/resources/workflows")
+}
+```
+
+```bash
+cd consumer
+./gradlew tasks --group=regression
+# Expected: regressionRun — Run Karate regression tests according to a workflow definition
+```
+
+### 5. Verify the plugin marker resolves correctly
+
+Gradle resolves plugin IDs via the marker POM. Confirm resolution works end-to-end:
+
+```bash
+cd consumer
+./gradlew dependencies --configuration=classpath 2>&1 | grep karate
+# Expected: org.openprojectx.karate.gradle:plugin:<version>
+```
+
+---
+
 ## Release Process
 
 Releases are managed via `net.researchgate.release` and published to Maven Central through Sonatype.
 
+### Required environment variables
+
 ```bash
-# Maintainers only
+export SIGNING_KEY_FILE=/path/to/private.key   # ASCII-armored GPG private key
+export SIGNING_KEY_PASSWORD=<passphrase>
+export OSSRH_USERNAME=<sonatype-token-username>
+export OSSRH_PASSWORD=<sonatype-token-password>
+```
+
+### Steps
+
+**1. Inspect locally first (see above)**
+
+```bash
+./gradlew publishToMavenLocal
+```
+
+**2. Run all tests**
+
+```bash
+./gradlew test
+```
+
+**3. Release**
+
+```bash
+# Maintainers only — bumps version, tags, publishes to Sonatype, closes and releases staging repo
 ./gradlew release
 ```
 
 This triggers: `publishToSonatype` → `closeAndReleaseSonatypeStagingRepository`.
 
-Artifacts are signed using a GPG key provided via `SIGNING_KEY_FILE` / `SIGNING_KEY_PASSWORD` environment variables.
+### What is published
+
+Three publication tasks fire during release:
+
+| Task | Artifact |
+|---|---|
+| `publishPluginMavenPublicationToSonatypeRepository` | Plugin jar + sources + javadoc |
+| `publishKarateRegressionPluginMarkerMavenPublicationToSonatypeRepository` | Plugin marker POM |
+| `publishMavenJavaPublicationToSonatypeRepository` (`:core` only) | Core jar + sources + javadoc |
+
+`publishMavenJavaPublicationToSonatypeRepository` in `:plugin` is intentionally disabled — `pluginMaven` is the canonical publication for the plugin module.

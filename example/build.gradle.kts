@@ -1,16 +1,17 @@
 plugins {
-    id("org.openprojectx.karate.gradle")
+    base
 }
 
-regression {
-    workflowsDir.set("src/test/resources/workflows")
-    featuresDir.set("src/test/resources/features")
-    environmentsDir.set("src/test/resources/environments")
-    datasetsRootDir.set("src/test/resources/datasets")
-
-    datasets {
-        register("default") {
-            path.set("default")
-        }
+allprojects {
+    repositories {
+        mavenCentral()
     }
+}
+
+tasks.register("regressionRunAll") {
+    group = "regression"
+    description = "Run regressionRun for all sample subprojects"
+    dependsOn(
+        subprojects.map { it.tasks.named("regressionRun") }
+    )
 }

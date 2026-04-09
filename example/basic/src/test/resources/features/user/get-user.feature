@@ -2,6 +2,9 @@ Feature: User API
 
   Background:
     * url baseUrl
+    * configure connectTimeout = karate.properties['karate.config.connectTimeout'] || 3000
+    * configure readTimeout = karate.properties['karate.config.readTimeout'] || 5000
+    * configure retry = { count: 2, interval: 250 }
 
   @smoke @regression
   Scenario: Get user by ID returns expected fields
@@ -26,5 +29,16 @@ Feature: User API
     Given path 'users', '1'
     When method GET
     Then status 200
-    And match response.id == expected.id
-    And match response.name == expected.name
+    * call read('classpath:features/helpers/assert-user.feature') { actual: '#(response)', expected: '#(expected)' }
+
+  @contract @regression
+  Scenario Outline: Validate a few user ids with one scenario
+    Given path 'users', <id>
+    When method GET
+    Then status 200
+    And match response.id == <id>
+    And match response.username == '#string'
+    Examples:
+      | id |
+      | 1  |
+      | 2  |

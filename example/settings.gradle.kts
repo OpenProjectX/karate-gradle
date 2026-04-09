@@ -11,3 +11,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "karate-example"
+
+include(":basic")
+include(":wiremock")

@@ -112,6 +112,7 @@ abstract class RegressionRunTask @Inject constructor(
         val karateArgs = KarateRunnerAdapter.buildArgs(
             workflow    = workflow,
             env         = effectiveEnv,
+            envConfig   = envConfig,
             datasetPath = datasetPath,
             outputDir   = reportsOutput.absolutePath,
             commitHash  = commitHash.orNull

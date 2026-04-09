@@ -1,0 +1,12 @@
+name: replay
+
+features:
+  - classpath:features/post/create-post.feature
+
+tags:
+  include: ["@replay"]
+  exclude: ["@ignore"]
+
+env: staging
+dataset: incident-2026-04-09
+parallel: 1

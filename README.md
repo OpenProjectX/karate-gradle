@@ -22,18 +22,22 @@ Reproducible test runs keyed on `(commit, workflow, dataset, env)` — identical
 karate-gradle/
 ├── core/          # Models, services, providers (no Gradle API dependency)
 ├── plugin/        # Gradle plugin: KarateRegressionPlugin + RegressionRunTask
-├── example/       # Standalone consumer (composite build) — runs real Karate tests
+├── example/       # Standalone consumer build with multiple sample submodules
 └── buildSrc/      # Convention plugins (kotlin-jvm)
 ```
 
 ### Running the example
 
-The `example/` project uses `includeBuild("..")` to apply the plugin directly from
-source — no publishing needed.
+The `example/` build uses `includeBuild("..")` to apply the plugin directly from
+source — no publishing needed. It contains:
+
+- `basic` for workflow, dataset, and environment examples against a public API
+- `wiremock` for a local stubbed-service example with more advanced Karate flows
 
 ```bash
 cd example
-../gradlew regressionRun -Pworkflow=smoke -Penv=staging
+../gradlew :basic:regressionRun -Pworkflow=smoke -Penv=staging
+../gradlew :wiremock:regressionRun -Pworkflow=regression
 ```
 
 ---
@@ -188,6 +192,7 @@ System properties are forwarded to Karate automatically:
 // karate-config.js
 function fn() {
     var config = {
+        workflow: karate.properties['karate.workflow'],
         baseUrl: karate.properties['karate.config.baseUrl'],
         datasetPath: karate.properties['dataset.path']
     };

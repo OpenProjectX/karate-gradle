@@ -24,6 +24,7 @@ object KarateRunnerAdapter {
     fun buildArgs(
         workflow: Workflow,
         env: String,
+        envConfig: Map<String, Any>,
         datasetPath: String,
         outputDir: String,
         commitHash: String? = null
@@ -47,9 +48,13 @@ object KarateRunnerAdapter {
 
         // System properties forwarded to Karate
         val sysProps = mutableMapOf<String, Any>(
-            "karate.env"   to env,
+            "karate.env" to env,
+            "karate.workflow" to workflow.name,
             "dataset.path" to datasetPath
         )
+        envConfig.forEach { (key, value) ->
+            sysProps["karate.config.$key"] = value.toString()
+        }
         if (!commitHash.isNullOrBlank()) {
             sysProps["karate.commit"] = commitHash
         }

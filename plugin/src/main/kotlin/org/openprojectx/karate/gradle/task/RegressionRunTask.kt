@@ -3,15 +3,17 @@ package org.openprojectx.karate.gradle.task
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.*
 import org.gradle.process.ExecOperations
+import org.openprojectx.karate.config.ConfigSource
+import org.openprojectx.karate.gradle.runner.KarateRunnerAdapter
 import org.openprojectx.karate.provider.LocalDatasetProvider
 import org.openprojectx.karate.service.DatasetResolver
 import org.openprojectx.karate.service.EnvResolver
 import org.openprojectx.karate.service.WorkflowLoader
-import org.openprojectx.karate.gradle.runner.KarateRunnerAdapter
 import javax.inject.Inject
 
 /**
@@ -26,19 +28,21 @@ import javax.inject.Inject
  * ```
  */
 abstract class RegressionRunTask @Inject constructor(
-    private val execOperations: ExecOperations
+    private val execOperations: ExecOperations,
+    objects: ObjectFactory,
 ) : DefaultTask() {
 
     // ── Wired from RegressionExtension at configuration time ──────────────────
 
-    @get:InputDirectory
+    /** Directories searched (in order) for workflow config files. */
+    @get:InputFiles
     @get:PathSensitive(PathSensitivity.RELATIVE)
-    abstract val workflowsDir: DirectoryProperty
+    val workflowsDirs: ConfigurableFileCollection = objects.fileCollection()
 
-    @get:InputDirectory
+    /** Directories searched (in order) for environment config files. */
+    @get:InputFiles
     @get:PathSensitive(PathSensitivity.RELATIVE)
-    @get:Optional
-    abstract val environmentsDir: DirectoryProperty
+    val environmentsDirs: ConfigurableFileCollection = objects.fileCollection()
 
     /** Absolute path of the local datasets root directory. */
     @get:Input
@@ -84,45 +88,41 @@ abstract class RegressionRunTask @Inject constructor(
 
     @TaskAction
     fun run() {
-        val workflowsDirFile    = workflowsDir.get().asFile
-        val environmentsDirFile = environmentsDir.orNull?.asFile
-        val reportsOutput       = reportsDir.get().asFile.also { it.mkdirs() }
+        val reportsOutput = reportsDir.get().asFile.also { it.mkdirs() }
 
-        // 1. Load workflow YAML
-        val workflow = WorkflowLoader(workflowsDirFile).load(workflowName.get())
+        val workflowSources = workflowsDirs.files.map { ConfigSource.LocalDirectory(it) }
+        val envSources      = environmentsDirs.files.map { ConfigSource.LocalDirectory(it) }
 
-        // 2. Effective env: CLI override → workflow YAML → "base"
+        val workflow = WorkflowLoader(workflowSources).load(workflowName.get())
+
         val effectiveEnv = envName.orNull?.takeIf { it.isNotBlank() } ?: workflow.env
 
-        // 3. Resolve env config (base + env merge)
-        val envConfig = if (environmentsDirFile != null && environmentsDirFile.exists()) {
-            EnvResolver(environmentsDirFile).resolve(effectiveEnv)
+        val envConfig = if (envSources.isNotEmpty()) {
+            EnvResolver(envSources).resolve(effectiveEnv)
         } else {
             emptyMap()
         }
 
-        // 4. Resolve dataset path
         val effectiveDataset = datasetName.orNull?.takeIf { it.isNotBlank() } ?: workflow.dataset
-        val registry = datasetRegistry.get()
-        val rootDir  = java.io.File(datasetsRootDir.get())
-        val provider = LocalDatasetProvider(rootDir, registry)
+        val provider = LocalDatasetProvider(
+            datasetsRootDir = java.io.File(datasetsRootDir.get()),
+            datasetPaths    = datasetRegistry.get(),
+        )
         val datasetPath = DatasetResolver(provider).resolve(effectiveDataset).toString()
 
-        // 5. Build Karate invocation args
         val karateArgs = KarateRunnerAdapter.buildArgs(
             workflow    = workflow,
             env         = effectiveEnv,
             envConfig   = envConfig,
             datasetPath = datasetPath,
             outputDir   = reportsOutput.absolutePath,
-            commitHash  = commitHash.orNull
+            commitHash  = commitHash.orNull,
         )
 
         logger.lifecycle("Executing workflow '${workflow.name}' | env=$effectiveEnv | dataset=$effectiveDataset | threads=${workflow.parallel}")
         logger.info("Karate args: ${karateArgs.positionalArgs}")
         logger.info("System properties: ${karateArgs.systemProps}")
 
-        // 6. Fork JVM and run com.intuit.karate.Main (ExecOperations is config-cache safe)
         execOperations.javaexec { spec ->
             spec.classpath(testClasspath)
             spec.mainClass.set(KarateRunnerAdapter.KARATE_MAIN_CLASS)

@@ -44,7 +44,8 @@ class KarateRegressionPluginTest {
                 id("org.openprojectx.karate.gradle")
             }
             regression {
-                workflowsDir.set("custom/workflows")
+                workflowsDirs.add("custom/workflows")
+                environmentsDirs.add("custom/environments")
                 datasetProvider.set("local")
                 datasets {
                     register("default") { path.set("datasets/default") }

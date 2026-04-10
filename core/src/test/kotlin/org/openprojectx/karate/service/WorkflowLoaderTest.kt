@@ -12,19 +12,21 @@ class WorkflowLoaderTest {
     lateinit var workflowsDir: File
 
     @Test
-    fun `loads full workflow from yaml`() {
-        workflowsDir.resolve("regression.yaml").writeText(
+    fun `loads full workflow from hocon`() {
+        workflowsDir.resolve("regression.conf").writeText(
             """
-            name: regression
-            features:
-              - classpath:features/user/**
-              - classpath:features/payment/**
-            tags:
-              include: ["@regression"]
-              exclude: ["@ignore"]
-            env: prod
-            dataset: default
-            parallel: 10
+            name = regression
+            features = [
+              "classpath:features/user/**"
+              "classpath:features/payment/**"
+            ]
+            tags {
+              "include" = ["@regression"]
+              exclude = ["@ignore"]
+            }
+            env = prod
+            dataset = default
+            parallel = 10
             """.trimIndent()
         )
 
@@ -42,7 +44,12 @@ class WorkflowLoaderTest {
 
     @Test
     fun `applies defaults for missing optional fields`() {
-        workflowsDir.resolve("smoke.yaml").writeText("name: smoke\nfeatures: []")
+        workflowsDir.resolve("smoke.conf").writeText(
+            """
+            name = smoke
+            features = []
+            """.trimIndent()
+        )
 
         val workflow = WorkflowLoader(workflowsDir).load("smoke")
 
@@ -53,7 +60,59 @@ class WorkflowLoaderTest {
     }
 
     @Test
-    fun `throws when workflow file is missing`() {
+    fun `loads workflow from json source`() {
+        workflowsDir.resolve("contract.json").writeText(
+            """
+            {
+              "name": "contract",
+              "features": ["classpath:features/api/**"],
+              "env": "staging",
+              "parallel": 2
+            }
+            """.trimIndent()
+        )
+
+        val workflow = WorkflowLoader(workflowsDir).load("contract")
+
+        assertEquals("contract", workflow.name)
+        assertEquals("staging", workflow.env)
+        assertEquals(2, workflow.parallel)
+    }
+
+    @Test
+    fun `merges workflow from multiple source directories`() {
+        val overrideDir = workflowsDir.resolve("override").also { it.mkdirs() }
+
+        workflowsDir.resolve("shared.conf").writeText(
+            """
+            name = shared
+            features = ["classpath:features/base/**"]
+            env = staging
+            parallel = 4
+            """.trimIndent()
+        )
+        overrideDir.resolve("shared.conf").writeText(
+            """
+            name = shared
+            env = prod
+            """.trimIndent()
+        )
+
+        val loader = WorkflowLoader(
+            listOf(
+                org.openprojectx.karate.config.ConfigSource.LocalDirectory(overrideDir),
+                org.openprojectx.karate.config.ConfigSource.LocalDirectory(workflowsDir),
+            )
+        )
+        val workflow = loader.load("shared")
+
+        assertEquals("prod", workflow.env)                              // overrideDir wins
+        assertEquals(listOf("classpath:features/base/**"), workflow.features)  // from base dir
+        assertEquals(4, workflow.parallel)                              // from base dir
+    }
+
+    @Test
+    fun `throws when workflow is not found in any source`() {
         assertFailsWith<IllegalArgumentException> {
             WorkflowLoader(workflowsDir).load("nonexistent")
         }

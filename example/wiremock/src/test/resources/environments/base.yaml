@@ -1,3 +1,0 @@
-serviceName: payments
-tenant: local-sandbox
-pollIntervalMillis: 50

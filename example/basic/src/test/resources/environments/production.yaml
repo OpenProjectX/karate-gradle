@@ -1,4 +1,0 @@
-baseUrl: https://jsonplaceholder.typicode.com
-connectTimeout: 5000
-readTimeout: 5000
-tenant: public-prod

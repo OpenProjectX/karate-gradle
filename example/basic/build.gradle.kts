@@ -3,9 +3,8 @@ plugins {
 }
 
 regression {
-    workflowsDir.set("src/test/resources/workflows")
-    featuresDir.set("src/test/resources/features")
-    environmentsDir.set("src/test/resources/environments")
+    workflowsDirs.add("src/test/resources/workflows")
+    environmentsDirs.add("src/test/resources/environments")
     datasetsRootDir.set("src/test/resources/datasets")
 
     datasets {

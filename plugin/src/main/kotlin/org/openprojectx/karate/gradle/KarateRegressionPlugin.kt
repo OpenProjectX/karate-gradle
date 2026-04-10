@@ -10,7 +10,7 @@ import org.openprojectx.karate.gradle.task.RegressionRunTask
  *
  * Applies to a consumer project that runs Karate regression tests.
  * Registers:
- * - `regression { }` extension (workflow/dataset/env configuration)
+ * - `regression { }` extension (workflow / dataset / env configuration)
  * - `regressionRun` task (CLI entry point)
  *
  * Consumer usage:
@@ -20,7 +20,8 @@ import org.openprojectx.karate.gradle.task.RegressionRunTask
  * }
  *
  * regression {
- *     workflowsDir.set("src/test/resources/workflows")
+ *     workflowsDirs.add("src/test/resources/workflows")
+ *     environmentsDirs.add("src/test/resources/environments")
  *     datasets {
  *         register("default") { path.set("datasets/default") }
  *     }
@@ -59,17 +60,25 @@ class KarateRegressionPlugin : Plugin<Project> {
             val layout    = project.layout
             val providers = project.providers
 
-            // Wire DirectoryProperties from extension String paths (lazy)
-            task.workflowsDir.set(extension.workflowsDir.map { layout.projectDirectory.dir(it) })
-            task.environmentsDir.set(extension.environmentsDir.map { layout.projectDirectory.dir(it) })
+            // Wire multi-source directories (in order: first dir has highest priority)
+            task.workflowsDirs.from(
+                extension.workflowsDirs.map { dirs ->
+                    dirs.map { layout.projectDirectory.dir(it) }
+                }
+            )
+            task.environmentsDirs.from(
+                extension.environmentsDirs.map { dirs ->
+                    dirs.map { layout.projectDirectory.dir(it) }
+                }
+            )
 
-            // datasetsRootDir as absolute String (serializable for config cache)
+            // Datasets root as absolute string (serializable for config cache)
             task.datasetsRootDir.set(
                 extension.datasetsRootDir.map { layout.projectDirectory.dir(it).asFile.absolutePath }
             )
             task.datasetProviderType.set(extension.datasetProvider)
 
-            // Wire dataset registry from the NamedDomainObjectContainer → MapProperty<String,String>
+            // Wire dataset registry from the NamedDomainObjectContainer → MapProperty<String, String>
             task.datasetRegistry.set(
                 providers.provider {
                     extension.datasets.associate { spec -> spec.name to spec.path.get() }
@@ -88,7 +97,7 @@ class KarateRegressionPlugin : Plugin<Project> {
             task.testClasspath.from(
                 testSourceSet.runtimeClasspath,
                 testSourceSet.output.classesDirs,
-                testSourceSet.output.resourcesDir
+                testSourceSet.output.resourcesDir,
             )
 
             // Output

@@ -1,25 +1,32 @@
 package org.openprojectx.karate.service
 
-import org.yaml.snakeyaml.Yaml
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
+import org.openprojectx.karate.config.ConfigSource
+import org.openprojectx.karate.config.load
 import java.io.File
 
 /**
- * Resolves the effective environment configuration by merging `base.yaml` with `<env>.yaml`.
+ * Resolves the effective environment configuration by merging `base` with `<env>` config.
  *
- * Merge order: `base.yaml` → `<env>.yaml` (env values override base, shallow merge).
+ * Supports multiple [ConfigSource]s: sources are checked in priority order (first wins).
+ * Supported file formats per source: `.conf` (HOCON), `.json`, `.properties`.
+ *
+ * Merge order: `<env>` overrides `base` (shallow merge via Typesafe Config fallback).
  */
-class EnvResolver(private val environmentsDir: File) {
+class EnvResolver(private val sources: List<ConfigSource>) {
+
+    constructor(environmentsDir: File) : this(listOf(ConfigSource.LocalDirectory(environmentsDir)))
 
     fun resolve(envName: String): Map<String, Any> {
-        val base = loadIfExists("base")
-        val env  = loadIfExists(envName)
-        return base + env
-    }
+        val base = sources.load("base")
+        val env  = sources.load(envName)
 
-    @Suppress("UNCHECKED_CAST")
-    private fun loadIfExists(name: String): Map<String, Any> {
-        val file = environmentsDir.resolve("$name.yaml")
-        if (!file.exists()) return emptyMap()
-        return file.inputStream().use { Yaml().load(it) as? Map<String, Any> ?: emptyMap() }
+        return env.withFallback(base)
+            .resolve()
+            .toFlatMap()
     }
 }
+
+private fun Config.toFlatMap(): Map<String, Any> =
+    entrySet().associate { it.key to it.value.unwrapped() }

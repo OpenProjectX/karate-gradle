@@ -3,6 +3,7 @@ package org.openprojectx.karate.gradle
 import org.gradle.api.Action
 import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.model.ObjectFactory
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import javax.inject.Inject
 
@@ -11,9 +12,9 @@ import javax.inject.Inject
  *
  * ```kotlin
  * regression {
- *     workflowsDir.set("src/test/resources/workflows")
- *     featuresDir.set("src/test/resources/features")
- *     testDataDir.set("src/test/resources/test-data")
+ *     workflowsDirs.add("src/test/resources/workflows")
+ *     environmentsDirs.add("src/test/resources/environments")
+ *     datasetsRootDir.set("src/test/resources/datasets")
  *     datasetProvider.set("local")
  *
  *     datasets {
@@ -22,22 +23,21 @@ import javax.inject.Inject
  *     }
  * }
  * ```
+ *
+ * Multiple directories can be added to [workflowsDirs] and [environmentsDirs].
+ * Sources are resolved in order: the first directory containing a matching file wins.
  */
 abstract class RegressionExtension @Inject constructor(objects: ObjectFactory) {
 
-    val workflowsDir: Property<String> = objects.property(String::class.java)
-        .convention("src/test/resources/workflows")
+    /** Directories searched (in order) for workflow `.conf` / `.json` / `.properties` files. */
+    val workflowsDirs: ListProperty<String> = objects.listProperty(String::class.java)
+        .convention(listOf("src/test/resources/workflows"))
 
-    val featuresDir: Property<String> = objects.property(String::class.java)
-        .convention("src/test/resources/features")
+    /** Directories searched (in order) for environment `.conf` / `.json` / `.properties` files. */
+    val environmentsDirs: ListProperty<String> = objects.listProperty(String::class.java)
+        .convention(listOf("src/test/resources/environments"))
 
-    val testDataDir: Property<String> = objects.property(String::class.java)
-        .convention("src/test/resources/test-data")
-
-    val environmentsDir: Property<String> = objects.property(String::class.java)
-        .convention("src/test/resources/environments")
-
-    /** "local" | "s3" | custom fully-qualified class name */
+    /** "local" | "s3" | custom fully-qualified class name. */
     val datasetProvider: Property<String> = objects.property(String::class.java)
         .convention("local")
 

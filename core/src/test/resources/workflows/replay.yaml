@@ -1,8 +1,0 @@
-name: replay
-
-mode: replay
-
-features:
-  - classpath:features/replay/replay.feature
-
-parallel: 1

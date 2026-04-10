@@ -2,6 +2,7 @@ package org.openprojectx.karate.config
 
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
+import org.yaml.snakeyaml.Yaml
 import java.io.File
 
 /**
@@ -15,20 +16,34 @@ sealed class ConfigSource {
     abstract fun forName(name: String): Config
 
     /**
-     * Loads from a local directory. Tries `.conf`, `.json`, `.properties` in that order.
+     * Loads from a local directory. Tries extensions in priority order:
+     * `.conf` (HOCON) → `.json` → `.yaml` → `.yml` → `.properties`.
      * Returns an empty [Config] when no matching file is found.
      */
     class LocalDirectory(val dir: File) : ConfigSource() {
 
-        override fun forName(name: String): Config =
-            EXTENSIONS
-                .map { ext -> dir.resolve("$name$ext") }
-                .firstOrNull { it.exists() }
-                ?.let { ConfigFactory.parseFile(it) }
-                ?: ConfigFactory.empty()
+        override fun forName(name: String): Config {
+            TYPESAFE_EXTENSIONS.forEach { ext ->
+                val file = dir.resolve("$name$ext")
+                if (file.exists()) return ConfigFactory.parseFile(file)
+            }
+            YAML_EXTENSIONS.forEach { ext ->
+                val file = dir.resolve("$name$ext")
+                if (file.exists()) return parseYaml(file)
+            }
+            return ConfigFactory.empty()
+        }
 
         companion object {
-            private val EXTENSIONS = listOf(".conf", ".json", ".properties")
+            private val TYPESAFE_EXTENSIONS = listOf(".conf", ".json", ".properties")
+            private val YAML_EXTENSIONS     = listOf(".yaml", ".yml")
+
+            @Suppress("UNCHECKED_CAST")
+            private fun parseYaml(file: File): Config {
+                val raw = file.inputStream().use { Yaml().load<Any>(it) }
+                return if (raw is Map<*, *>) ConfigFactory.parseMap(raw as Map<String, Any>)
+                       else ConfigFactory.empty()
+            }
         }
     }
 

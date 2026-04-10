@@ -1,0 +1,12 @@
+name: smoke
+
+features:
+  - classpath:features/payment/payment-lifecycle.feature
+
+tags:
+  include: ["@smoke"]
+  exclude: ["@ignore"]
+
+env: local
+dataset: default
+parallel: 1

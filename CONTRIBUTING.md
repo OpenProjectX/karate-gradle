@@ -101,6 +101,29 @@ Test reports: `<module>/build/reports/tests/test/index.html`
 
 ---
 
+## Config File Format
+
+Workflow and environment files support multiple formats. The discovery order within a directory is:
+
+`.conf` (HOCON) → `.json` → `.yaml` → `.yml` → `.properties`
+
+HOCON is the preferred format for new files. YAML is fully supported and requires no migration.
+
+### HOCON gotcha: `include` is a reserved keyword
+
+Inside a `tags {}` block, quote the `include` key:
+
+```hocon
+tags {
+  "include" = ["@smoke"]   # must be quoted in HOCON
+  exclude   = ["@ignore"]  # no issue
+}
+```
+
+YAML files are not affected — `include:` is a regular key in YAML.
+
+---
+
 ## Adding a New Module
 
 The `settings.gradle.kts` auto-discovers modules by scanning for `build.gradle.kts` files. To add a new module:
@@ -148,9 +171,31 @@ class S3DatasetProvider(private val bucket: String) : DatasetProvider {
 ## Adding a New Workflow Field
 
 1. Add the field to `Workflow` in `core/src/main/kotlin/org/openprojectx/karate/model/Models.kt` with a default value.
-2. Update `WorkflowLoader.mapToWorkflow()` to read it from the YAML map.
+2. Update `WorkflowLoader.parseWorkflow()` to read it from the `Config` object:
+   ```kotlin
+   myField = if (config.hasPath("myField")) config.getString("myField") else "default"
+   ```
 3. Use it in `KarateRunnerAdapter.buildArgs()` or `RegressionRunTask.run()`.
-4. Add a test case in `WorkflowLoaderTest`.
+4. Add a test case in `WorkflowLoaderTest` — write a `.conf` or `.yaml` temp file, then assert the field.
+
+---
+
+## Adding a New Config Source Type
+
+`ConfigSource` is a sealed class in `core/src/main/kotlin/org/openprojectx/karate/config/ConfigSource.kt`.
+To add a new source (e.g. remote config server):
+
+1. Add a new subclass:
+
+```kotlin
+class RemoteUrl(val url: String) : ConfigSource() {
+    override fun forName(name: String): Config {
+        // fetch and parse
+    }
+}
+```
+
+2. Wire it from the extension/task if it needs to be user-configurable.
 
 ---
 
@@ -160,7 +205,7 @@ Follow conventional commits:
 
 ```
 feat: add S3 dataset provider
-fix: handle missing base.yaml gracefully
+fix: handle missing base config gracefully
 test: add EnvResolver edge case for empty env file
 refactor: extract tag arg builder to KarateRunnerAdapter
 ```
@@ -184,7 +229,7 @@ Open an issue at [github.com/OpenProjectX/karate-gradle/issues](https://github.c
 
 - Gradle version (`./gradlew --version`)
 - JDK version (`java -version`)
-- Minimal reproduction (workflow YAML + `build.gradle.kts` snippet)
+- Minimal reproduction (workflow file + `build.gradle.kts` snippet)
 - Full error output
 
 ---
@@ -244,11 +289,11 @@ rootProject.name = "consumer-test"
 ```kotlin
 // consumer/build.gradle.kts
 plugins {
-    id("org.openprojectx.karate.gradle") version "0.1.0-SNAPSHOT"
+    id("org.openprojectx.karate.gradle") version "0.2.0-SNAPSHOT"
 }
 
 regression {
-    workflowsDir.set("src/test/resources/workflows")
+    workflowsDirs.add("src/test/resources/workflows")
 }
 ```
 
@@ -316,4 +361,5 @@ Three publication tasks fire during release:
 | `publishKarateRegressionPluginMarkerMavenPublicationToSonatypeRepository` | Plugin marker POM |
 | `publishMavenJavaPublicationToSonatypeRepository` (`:core` only) | Core jar + sources + javadoc |
 
-`publishMavenJavaPublicationToSonatypeRepository` in `:plugin` is intentionally disabled — `pluginMaven` is the canonical publication for the plugin module.
+`publishMavenJavaPublicationToSonatypeRepository` in `:plugin` is intentionally disabled —
+`pluginMaven` is the canonical publication for the plugin module.

@@ -60,6 +60,29 @@ class WorkflowLoaderTest {
     }
 
     @Test
+    fun `loads workflow from yaml source`() {
+        workflowsDir.resolve("smoke.yaml").writeText(
+            """
+            name: smoke
+            features:
+              - classpath:features/user/**
+            tags:
+              include: ["@smoke"]
+              exclude: ["@ignore"]
+            env: staging
+            parallel: 2
+            """.trimIndent()
+        )
+
+        val workflow = WorkflowLoader(workflowsDir).load("smoke")
+
+        assertEquals("smoke", workflow.name)
+        assertEquals(listOf("@smoke"), workflow.tags.include)
+        assertEquals("staging", workflow.env)
+        assertEquals(2, workflow.parallel)
+    }
+
+    @Test
     fun `loads workflow from json source`() {
         workflowsDir.resolve("contract.json").writeText(
             """

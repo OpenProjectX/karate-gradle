@@ -8,11 +8,67 @@ Reproducible test runs keyed on `(commit, workflow, dataset, env)` — identical
 
 ## Features
 
-- **Workflow DSL** — YAML-defined feature sets, tag filters, parallelism, and dataset bindings
-- **Environment resolution** — `base.yaml` + `<env>.yaml` merge with runtime overrides
+- **Workflow DSL** — HOCON/YAML/JSON-defined feature sets, tag filters, parallelism, and dataset bindings
+- **Environment resolution** — `base` + `<env>` config merge with runtime overrides
+- **Multi-source config** — search multiple directories per source type; first match wins
 - **Dataset versioning** — named datasets with pluggable resolution (local filesystem today, S3 in the future)
 - **Gradle-first** — one task, no CI-specific logic; Jenkins just passes parameters
 - **Config-cache compatible** — designed for Gradle 8+ configuration cache (`warn` mode)
+
+---
+
+## Migration from 0.1.x → 0.2.x (Breaking Changes)
+
+### Extension DSL
+
+The `workflowsDir` and `environmentsDir` single-directory properties are replaced by
+`workflowsDirs` and `environmentsDirs` list properties that accept one or more directories.
+
+```kotlin
+// BEFORE (0.1.x)
+regression {
+    workflowsDir.set("src/test/resources/workflows")
+    environmentsDir.set("src/test/resources/environments")
+    featuresDir.set("src/test/resources/features")   // existed but unused
+    testDataDir.set("src/test/resources/test-data")  // existed but unused
+}
+
+// AFTER (0.2.x)
+regression {
+    workflowsDirs.add("src/test/resources/workflows")
+    environmentsDirs.add("src/test/resources/environments")
+    // featuresDir and testDataDir removed
+}
+```
+
+`add()` appends to the list; `set(listOf(...))` replaces it entirely. Multiple directories
+are searched in order — the first directory containing a match wins.
+
+### Config file format
+
+YAML (`.yaml` / `.yml`) is still fully supported. The preferred format is now HOCON (`.conf`),
+which is the default when both exist.
+
+**Discovery order per directory:** `.conf` → `.json` → `.yaml` → `.yml` → `.properties`
+
+If you keep YAML files, no change is needed. To migrate a workflow file:
+
+```yaml
+# regression.yaml  (still works)
+name: regression
+tags:
+  include: ["@regression"]
+  exclude: ["@ignore"]
+```
+
+```hocon
+# regression.conf  (preferred)
+name = regression
+tags {
+  "include" = ["@regression"]   # note: include is a HOCON reserved keyword — quote it
+  exclude = ["@ignore"]
+}
+```
 
 ---
 
@@ -49,7 +105,7 @@ cd example
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("org.openprojectx.karate.gradle") version "0.1.0"
+    id("org.openprojectx.karate.gradle") version "0.2.0"
 }
 ```
 
@@ -59,9 +115,14 @@ The plugin automatically adds `io.karatelabs:karate-junit5` to `testImplementati
 
 ```kotlin
 regression {
-    workflowsDir.set("src/test/resources/workflows")   // default
-    environmentsDir.set("src/test/resources/environments") // default
-    datasetsRootDir.set("datasets")                    // default
+    // Directories are searched in order; first match wins.
+    // Default: ["src/test/resources/workflows"]
+    workflowsDirs.add("src/test/resources/workflows")
+
+    // Default: ["src/test/resources/environments"]
+    environmentsDirs.add("src/test/resources/environments")
+
+    datasetsRootDir.set("datasets")   // default
 
     datasets {
         register("default") {
@@ -75,6 +136,30 @@ regression {
 ```
 
 ### 3. Create a workflow
+
+HOCON (`.conf`) is preferred; YAML (`.yaml`) is also supported.
+
+```hocon
+# src/test/resources/workflows/regression.conf
+name = regression
+
+features = [
+  "classpath:features/user/**"
+  "classpath:features/payment/**"
+]
+
+tags {
+  "include" = ["@regression"]   # include is a HOCON reserved word — quote it
+  exclude   = ["@ignore"]
+}
+
+env      = prod
+dataset  = default
+parallel = 10
+```
+
+<details>
+<summary>Same workflow in YAML</summary>
 
 ```yaml
 # src/test/resources/workflows/regression.yaml
@@ -93,14 +178,16 @@ dataset: default
 parallel: 10
 ```
 
+</details>
+
 ### 4. Create environment files
 
-```yaml
-# src/test/resources/environments/base.yaml
-timeout: 5000
+```hocon
+# src/test/resources/environments/base.conf
+timeout = 5000
 
-# src/test/resources/environments/prod.yaml
-baseUrl: https://api.prod.com
+# src/test/resources/environments/prod.conf
+baseUrl = "https://api.prod.com"
 ```
 
 ### 5. Run
@@ -129,14 +216,14 @@ your-project/
 │   │   └── payment/
 │   │
 │   ├── workflows/
-│   │   ├── smoke.yaml
-│   │   ├── regression.yaml
-│   │   └── replay.yaml
+│   │   ├── smoke.conf
+│   │   ├── regression.conf
+│   │   └── replay.conf
 │   │
 │   ├── environments/
-│   │   ├── base.yaml
-│   │   ├── prod.yaml
-│   │   └── staging.yaml
+│   │   ├── base.conf
+│   │   ├── prod.conf
+│   │   └── staging.conf
 │   │
 │   └── karate-config.js
 │
@@ -149,38 +236,68 @@ your-project/
 
 ## Workflow DSL Reference
 
-| Field      | Type         | Default      | Description                                   |
-|------------|--------------|--------------|-----------------------------------------------|
-| `name`     | String       | required     | Workflow identifier                           |
-| `features` | List<String> | `[]`         | Karate feature paths (`classpath:` supported) |
-| `tags`     | Object       | none         | `include` and `exclude` tag lists             |
-| `env`      | String       | `base`       | Target environment                            |
-| `dataset`  | String       | `default`    | Dataset name                                  |
-| `parallel` | Int          | `1`          | Number of parallel threads                    |
-| `mode`     | String       | `standard`   | `standard` or `replay`                        |
+Supported formats: `.conf` (HOCON), `.json`, `.yaml`, `.yml`, `.properties`.
+
+| Field      | Type         | Default      | Description                                        |
+|------------|--------------|--------------|----------------------------------------------------|
+| `name`     | String       | required     | Workflow identifier                                |
+| `features` | List<String> | `[]`         | Karate feature paths (`classpath:` supported)      |
+| `tags`     | Object       | none         | `include` and `exclude` tag lists (see note below) |
+| `env`      | String       | `base`       | Target environment                                 |
+| `dataset`  | String       | `default`    | Dataset name                                       |
+| `parallel` | Int          | `1`          | Number of parallel threads                         |
+| `mode`     | String       | `standard`   | `standard` or `replay`                             |
+
+> **HOCON note:** `include` is a reserved keyword in HOCON. Inside a `tags {}` block,
+> write `"include" = [...]` (with quotes). YAML files are not affected.
 
 ### Replay Workflow
 
-```yaml
-name: replay
-mode: replay
-features:
-  - classpath:features/replay/replay.feature
-parallel: 1
+```hocon
+# replay.conf
+name    = replay
+mode    = replay
+features = ["classpath:features/replay/replay.feature"]
+parallel = 1
 ```
+
+---
+
+## Multi-Source Config
+
+Each of `workflowsDirs` and `environmentsDirs` accepts multiple directories.
+Sources are resolved in list order — the **first directory** containing a matching file wins.
+
+```kotlin
+regression {
+    // Shared org-level workflows are checked first, project-level second
+    workflowsDirs.set(listOf(
+        "config/shared/workflows",
+        "src/test/resources/workflows",
+    ))
+
+    environmentsDirs.set(listOf(
+        "config/shared/environments",
+        "src/test/resources/environments",
+    ))
+}
+```
+
+This is useful for inheriting a shared base config from a corporate config repo while
+allowing project-level overrides.
 
 ---
 
 ## Task Parameters
 
-All parameters are optional; workflow YAML values are used as defaults.
+All parameters are optional; workflow file values are used as defaults.
 
-| Parameter     | Flag              | Description                     |
-|---------------|-------------------|---------------------------------|
-| workflow name | `-Pworkflow=`     | Which workflow YAML to load     |
-| environment   | `-Penv=`          | Override workflow's `env` field |
-| dataset       | `-Pdataset=`      | Override workflow's `dataset`   |
-| commit ref    | `-Pcommit=`       | Set `karate.commit` sys prop    |
+| Parameter     | Flag          | Description                     |
+|---------------|---------------|---------------------------------|
+| workflow name | `-Pworkflow=` | Which workflow file to load     |
+| environment   | `-Penv=`      | Override workflow's `env` field |
+| dataset       | `-Pdataset=`  | Override workflow's `dataset`   |
+| commit ref    | `-Pcommit=`   | Set `karate.commit` sys prop    |
 
 ---
 
@@ -192,8 +309,8 @@ System properties are forwarded to Karate automatically:
 // karate-config.js
 function fn() {
     var config = {
-        workflow: karate.properties['karate.workflow'],
-        baseUrl: karate.properties['karate.config.baseUrl'],
+        workflow:    karate.properties['karate.workflow'],
+        baseUrl:     karate.properties['karate.config.baseUrl'],
         datasetPath: karate.properties['dataset.path']
     };
     return config;
@@ -247,13 +364,14 @@ sh """
 
 ```kotlin
 regression {
-    workflowsDir.set("src/test/resources/workflows")
-    featuresDir.set("src/test/resources/features")
-    testDataDir.set("src/test/resources/test-data")
-    environmentsDir.set("src/test/resources/environments")
+    // Directories searched in order for workflow files (.conf, .json, .yaml, .yml, .properties)
+    workflowsDirs.add("src/test/resources/workflows")    // default
 
-    datasetProvider.set("local")   // "local" | "s3" (future)
-    datasetsRootDir.set("datasets")
+    // Directories searched in order for environment files
+    environmentsDirs.add("src/test/resources/environments")  // default
+
+    datasetProvider.set("local")    // "local" | "s3" (future)
+    datasetsRootDir.set("datasets") // default
 
     datasets {
         register("default") {
@@ -288,11 +406,11 @@ regression {
 ```
 Gradle Task (regressionRun)
    ↓
-WorkflowLoader          ← parses <name>.yaml
+WorkflowLoader          ← searches workflowsDirs for <name>.{conf,json,yaml,yml,properties}
    ↓
 DatasetResolver         ← LocalDatasetProvider (or future S3)
    ↓
-EnvResolver             ← base.yaml + <env>.yaml merge
+EnvResolver             ← searches environmentsDirs, merges base + <env> config
    ↓
 KarateRunnerAdapter     ← builds CLI args
    ↓
@@ -300,6 +418,14 @@ ExecOperations.javaexec ← forks JVM, runs com.intuit.karate.Main
    ↓
 build/reports/regression/
 ```
+
+### Config source priority (within a directory)
+
+`.conf` → `.json` → `.yaml` → `.yml` → `.properties`
+
+### Config source priority (across directories)
+
+First directory in `workflowsDirs` / `environmentsDirs` wins.
 
 ---
 

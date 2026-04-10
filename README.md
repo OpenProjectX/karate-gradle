@@ -12,6 +12,7 @@ Reproducible test runs keyed on `(commit, workflow, dataset, env)` — identical
 - **Environment resolution** — `base` + `<env>` config merge with runtime overrides
 - **Multi-source config** — search multiple directories per source type; first match wins
 - **Dataset versioning** — named datasets with pluggable resolution (local filesystem today, S3 in the future)
+- **Reporting integrations** — built-in opt-in support for Allure and ReportPortal; no boilerplate
 - **Gradle-first** — one task, no CI-specific logic; Jenkins just passes parameters
 - **Config-cache compatible** — designed for Gradle 8+ configuration cache (`warn` mode)
 
@@ -360,6 +361,140 @@ sh """
 
 ---
 
+## Reporting
+
+### How reporting works
+
+`regressionRun` runs `com.intuit.karate.Main` via a forked JVM — it always generates
+Karate's own HTML report in `build/reports/regression/`. It does **not** fire JUnit5
+lifecycle events.
+
+Allure and ReportPortal both work by hooking into JUnit5 lifecycle events. Their results
+are therefore produced by the standard **`test`** Gradle task running a
+`@Karate.Test`-annotated JUnit5 class — not by `regressionRun`.
+
+```
+regressionRun  →  com.intuit.karate.Main  →  build/reports/regression/  (Karate HTML)
+test           →  JUnit5  →  allure-junit5  →  build/allure-results/    (Allure JSON)
+                         →  allureReport   →  build/reports/allure-report/ (Allure HTML)
+                         →  agent-junit5   →  streams to ReportPortal server
+```
+
+The two flows are complementary: `regressionRun` for workflow-driven, parameterized CI
+runs; `test` + `allureReport` for rich HTML reporting during development or in pipelines
+that need Allure.
+
+---
+
+### Allure (local HTML report)
+
+```kotlin
+// build.gradle.kts
+plugins {
+    id("org.openprojectx.karate.gradle")
+    id("io.qameta.allure") version "3.0.1"   // adds allureReport + allureServe tasks
+}
+
+allure {
+    adapter { autoconfigure.set(false) }   // our plugin manages the allure-junit5 dep
+}
+
+regression {
+    reporting {
+        allure {
+            enabled.set(true)
+            // version.set("2.27.0")           // default
+            // resultsDir.set("allure-results") // relative to build dir, default
+        }
+    }
+}
+```
+
+When `allure.enabled = true` the plugin:
+1. Adds `io.qameta.allure:allure-junit5` to `testImplementation`
+2. Sets `-Dallure.results.directory` on every `Test` task so results land in the right place
+
+You also need a JUnit5 runner class that Allure hooks into (see example/basic `AllureRunner`).
+Write it in Java — the plugin applies the `java` plugin, so `src/test/java/` is always on
+the source set. No Kotlin plugin is required in the consumer project.
+
+```java
+// src/test/java/runner/AllureRunner.java
+package runner;
+
+import com.intuit.karate.junit5.Karate;
+
+class AllureRunner {
+    @Karate.Test
+    Karate smoke() {
+        return Karate.run("classpath:features").tags("@smoke").relativeTo(getClass());
+    }
+
+    @Karate.Test
+    Karate regression() {
+        return Karate.run("classpath:features").tags("@regression").relativeTo(getClass());
+    }
+}
+```
+
+```bash
+# Run features and generate Allure HTML report
+./gradlew test allureReport
+
+# Open the report in the browser (downloads Allure CLI automatically)
+./gradlew allureServe
+```
+
+The HTML report is at `build/reports/allure-report/index.html`.
+
+---
+
+### ReportPortal (remote, real-time)
+
+ReportPortal is a remote test management platform — it streams results to a running server
+in real time; it does not generate a local HTML file. You can run it locally via Docker:
+
+```bash
+docker-compose -f docker-compose.yml up -d   # official RP docker-compose
+```
+
+```kotlin
+regression {
+    reporting {
+        reportPortal {
+            enabled.set(true)
+            endpoint.set("https://reportportal.example.com")
+            apiKey.set(providers.environmentVariable("RP_API_KEY"))  // keep out of VCS
+            project.set("karate-regression")
+            launch.set("smoke")
+            description.set("Nightly smoke suite")
+            attributes.set(listOf("team:backend", "env:staging"))
+        }
+    }
+}
+```
+
+When `reportPortal.enabled = true` the plugin:
+1. Adds `com.epam.reportportal:agent-java-junit5` to `testImplementation`
+2. Sets all `rp.*` system properties on every `Test` task so the agent streams results
+
+```bash
+./gradlew test   # runs tests and streams results to ReportPortal
+```
+
+| Property      | System property  | Description                                      |
+|---------------|------------------|--------------------------------------------------|
+| `endpoint`    | `rp.endpoint`    | ReportPortal server URL                          |
+| `apiKey`      | `rp.api.key`     | API key — supply via env var, not hardcoded      |
+| `project`     | `rp.project`     | Project name in ReportPortal                     |
+| `launch`      | `rp.launch`      | Launch name displayed in the UI                  |
+| `description` | `rp.description` | Optional launch description                      |
+| `attributes`  | `rp.attributes`  | `key:value` or plain tags joined with `;`        |
+
+Both reporters can be enabled simultaneously.
+
+---
+
 ## Extension DSL Reference
 
 ```kotlin
@@ -376,6 +511,24 @@ regression {
     datasets {
         register("default") {
             path.set("datasets/default")
+        }
+    }
+
+    reporting {
+        allure {
+            enabled.set(false)           // default
+            version.set("2.27.0")        // default
+            resultsDir.set("allure-results") // relative to build dir, default
+        }
+        reportPortal {
+            enabled.set(false)           // default
+            agentVersion.set("5.4.1")   // default
+            endpoint.set("https://...")
+            apiKey.set(providers.environmentVariable("RP_API_KEY"))
+            project.set("my-project")
+            launch.set("regression")
+            description.set("...")
+            attributes.set(listOf("env:prod", "suite:regression"))
         }
     }
 }

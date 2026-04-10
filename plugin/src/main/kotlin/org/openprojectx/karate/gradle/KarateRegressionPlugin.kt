@@ -3,6 +3,9 @@ package org.openprojectx.karate.gradle
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.tasks.SourceSetContainer
+import org.gradle.api.tasks.testing.Test
+import org.openprojectx.karate.gradle.reporting.AllureConfig
+import org.openprojectx.karate.gradle.reporting.ReportPortalConfig
 import org.openprojectx.karate.gradle.task.RegressionRunTask
 
 /**
@@ -10,7 +13,7 @@ import org.openprojectx.karate.gradle.task.RegressionRunTask
  *
  * Applies to a consumer project that runs Karate regression tests.
  * Registers:
- * - `regression { }` extension (workflow / dataset / env configuration)
+ * - `regression { }` extension (workflow / dataset / env / reporting configuration)
  * - `regressionRun` task (CLI entry point)
  *
  * Consumer usage:
@@ -22,8 +25,22 @@ import org.openprojectx.karate.gradle.task.RegressionRunTask
  * regression {
  *     workflowsDirs.add("src/test/resources/workflows")
  *     environmentsDirs.add("src/test/resources/environments")
+ *
  *     datasets {
  *         register("default") { path.set("datasets/default") }
+ *     }
+ *
+ *     reporting {
+ *         allure {
+ *             enabled.set(true)
+ *         }
+ *         reportPortal {
+ *             enabled.set(true)
+ *             endpoint.set("https://reportportal.example.com")
+ *             apiKey.set(providers.environmentVariable("RP_API_KEY"))
+ *             project.set("karate-regression")
+ *             launch.set("smoke")
+ *         }
  *     }
  * }
  * ```
@@ -38,6 +55,8 @@ class KarateRegressionPlugin : Plugin<Project> {
     companion object {
         private const val DEFAULT_KARATE_VERSION = "1.5.2"
         private const val KARATE_ARTIFACT = "io.karatelabs:karate-junit5"
+        private const val ALLURE_ARTIFACT = "io.qameta.allure:allure-junit5"
+        private const val REPORT_PORTAL_ARTIFACT = "com.epam.reportportal:agent-java-junit5"
     }
 
     override fun apply(project: Project) {
@@ -51,6 +70,12 @@ class KarateRegressionPlugin : Plugin<Project> {
 
         // Create the regression { } extension
         val extension = project.extensions.create("regression", RegressionExtension::class.java)
+
+        // Inject reporting dependencies after the build script has been evaluated
+        // so the reporting { } block has been fully configured before we read it.
+        project.afterEvaluate {
+            addReportingDependencies(project, extension)
+        }
 
         // Register regressionRun task (lazy — no eager configuration)
         project.tasks.register("regressionRun", RegressionRunTask::class.java) { task ->
@@ -91,6 +116,13 @@ class KarateRegressionPlugin : Plugin<Project> {
             task.datasetName.set(providers.gradleProperty("dataset"))
             task.commitHash.set(providers.gradleProperty("commit"))
 
+            // Reporting system properties (Allure + ReportPortal)
+            task.reportingSystemProps.set(
+                providers.provider {
+                    buildReportingProps(extension, layout)
+                }
+            )
+
             // Wire test classpath from the test source set
             val sourceSets = project.extensions.getByType(SourceSetContainer::class.java)
             val testSourceSet = sourceSets.getByName("test")
@@ -106,5 +138,72 @@ class KarateRegressionPlugin : Plugin<Project> {
             // Ensure test classes are compiled before running
             task.dependsOn(project.tasks.named("testClasses"))
         }
+    }
+
+    private fun addReportingDependencies(project: Project, extension: RegressionExtension) {
+        val allure = extension.reporting.allure
+        if (allure.enabled.getOrElse(false)) {
+            project.dependencies.add(
+                "testImplementation",
+                "$ALLURE_ARTIFACT:${allure.version.get()}",
+            )
+            // Wire the results directory on every JUnit5 Test task so that
+            // `./gradlew test allureReport` picks up the correct location.
+            val resultsDir = project.layout.buildDirectory
+                .dir(allure.resultsDir.get()).get().asFile.absolutePath
+            project.tasks.withType(Test::class.java).configureEach { test ->
+                test.systemProperty("allure.results.directory", resultsDir)
+            }
+        }
+
+        val rp = extension.reporting.reportPortal
+        if (rp.enabled.getOrElse(false)) {
+            project.dependencies.add(
+                "testImplementation",
+                "$REPORT_PORTAL_ARTIFACT:${rp.agentVersion.get()}",
+            )
+            // ReportPortal agent reads rp.* properties from the JVM it runs in.
+            // Wire them onto every JUnit5 Test task so `./gradlew test` streams
+            // results to the configured RP server automatically.
+            project.tasks.withType(Test::class.java).configureEach { test ->
+                rp.endpoint.orNull?.let    { test.systemProperty("rp.endpoint",    it) }
+                rp.apiKey.orNull?.let      { test.systemProperty("rp.api.key",     it) }
+                rp.project.orNull?.let     { test.systemProperty("rp.project",     it) }
+                rp.launch.orNull?.let      { test.systemProperty("rp.launch",      it) }
+                rp.description.orNull?.let { test.systemProperty("rp.description", it) }
+                val attrs = rp.attributes.getOrElse(emptyList())
+                if (attrs.isNotEmpty()) test.systemProperty("rp.attributes", attrs.joinToString(";"))
+            }
+        }
+    }
+
+    private fun buildReportingProps(
+        extension: RegressionExtension,
+        layout: org.gradle.api.file.ProjectLayout,
+    ): Map<String, String> = buildMap {
+        addAllureProps(extension.reporting.allure, layout)
+        addReportPortalProps(extension.reporting.reportPortal)
+    }
+
+    private fun MutableMap<String, String>.addAllureProps(
+        allure: AllureConfig,
+        layout: org.gradle.api.file.ProjectLayout,
+    ) {
+        if (!allure.enabled.getOrElse(false)) return
+        put(
+            "allure.results.directory",
+            layout.buildDirectory.dir(allure.resultsDir.get()).get().asFile.absolutePath,
+        )
+    }
+
+    private fun MutableMap<String, String>.addReportPortalProps(rp: ReportPortalConfig) {
+        if (!rp.enabled.getOrElse(false)) return
+        rp.endpoint.orNull?.let    { put("rp.endpoint",     it) }
+        rp.apiKey.orNull?.let      { put("rp.api.key",      it) }
+        rp.project.orNull?.let     { put("rp.project",      it) }
+        rp.launch.orNull?.let      { put("rp.launch",       it) }
+        rp.description.orNull?.let { put("rp.description",  it) }
+        val attrs = rp.attributes.getOrElse(emptyList())
+        if (attrs.isNotEmpty()) put("rp.attributes", attrs.joinToString(";"))
     }
 }

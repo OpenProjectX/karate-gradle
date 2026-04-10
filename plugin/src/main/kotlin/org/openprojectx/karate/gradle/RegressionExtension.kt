@@ -5,6 +5,7 @@ import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
+import org.openprojectx.karate.gradle.reporting.ReportingExtension
 import javax.inject.Inject
 
 /**
@@ -48,7 +49,13 @@ abstract class RegressionExtension @Inject constructor(objects: ObjectFactory) {
     val datasets: NamedDomainObjectContainer<DatasetSpec> =
         objects.domainObjectContainer(DatasetSpec::class.java)
 
+    val reporting: ReportingExtension = objects.newInstance(ReportingExtension::class.java)
+
     fun datasets(action: Action<NamedDomainObjectContainer<DatasetSpec>>) {
         action.execute(datasets)
+    }
+
+    fun reporting(action: Action<ReportingExtension>) {
+        action.execute(reporting)
     }
 }

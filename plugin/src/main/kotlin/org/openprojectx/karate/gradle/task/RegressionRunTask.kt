@@ -73,6 +73,15 @@ abstract class RegressionRunTask @Inject constructor(
     @get:Optional
     abstract val commitHash: Property<String>
 
+    // ── Reporting (Allure / ReportPortal) system properties ───────────────────
+
+    /**
+     * System properties collected from enabled reporters.
+     * Merged with Karate's own system properties before forking the JVM.
+     */
+    @get:Input
+    abstract val reportingSystemProps: MapProperty<String, String>
+
     // ── Consumer project's test classpath ─────────────────────────────────────
 
     @get:InputFiles
@@ -123,11 +132,13 @@ abstract class RegressionRunTask @Inject constructor(
         logger.info("Karate args: ${karateArgs.positionalArgs}")
         logger.info("System properties: ${karateArgs.systemProps}")
 
+        val allSystemProps = karateArgs.systemProps + reportingSystemProps.getOrElse(emptyMap())
+
         execOperations.javaexec { spec ->
             spec.classpath(testClasspath)
             spec.mainClass.set(KarateRunnerAdapter.KARATE_MAIN_CLASS)
             spec.args(karateArgs.positionalArgs)
-            spec.systemProperties(karateArgs.systemProps)
+            spec.systemProperties(allSystemProps)
             spec.jvmArgs(karateArgs.jvmArgs)
         }
     }

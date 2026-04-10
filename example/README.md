@@ -14,10 +14,15 @@ Standalone composite consumer build for `karate-gradle`.
 From `example/`:
 
 ```bash
+# Workflow-driven runs (Karate HTML report → build/reports/regression/)
 ../gradlew :basic:regressionRun -Pworkflow=smoke -Penv=staging
 ../gradlew :basic:regressionRun -Pworkflow=contract -Pdataset=extended -Pcommit=abc123
 ../gradlew :wiremock:regressionRun -Pworkflow=regression -Pdataset=edge-cases
 ../gradlew regressionRunAll -Pworkflow=smoke
+
+# Allure HTML report (basic module only — requires io.qameta.allure plugin)
+../gradlew :basic:test allureReport          # generates build/reports/allure-report/
+../gradlew :basic:allureServe                # generates + opens in browser
 ```
 
 Each module keeps its own `src/test/resources` layout so the examples stay close to a real consumer project.
@@ -50,14 +55,72 @@ wiremock/src/test/resources/
 
 Discovery order within a directory: `.conf` → `.json` → `.yaml` → `.yml` → `.properties`.
 
+## Reporting integrations
+
+Both modules demonstrate opt-in reporting integrations. Reporting agents hook into JUnit5
+lifecycle events — they work via `./gradlew test`, not via `regressionRun`.
+
+```
+regressionRun  →  com.intuit.karate.Main  →  build/reports/regression/  (Karate HTML)
+test           →  JUnit5  →  allure-junit5  →  build/allure-results/    (Allure JSON)
+                         →  allureReport   →  build/reports/allure-report/ (Allure HTML)
+                         →  agent-junit5   →  streams to ReportPortal server
+```
+
+### Allure (`basic`)
+
+`basic` demonstrates Allure HTML report generation:
+
+| Task | Executor | Reports |
+|------|----------|---------|
+| `regressionRun` | `com.intuit.karate.Main` | Karate HTML → `build/reports/regression/` |
+| `test` + `allureReport` | JUnit5 via `AllureRunner` | Allure HTML → `build/reports/allure-report/` |
+
+`AllureRunner` (`src/test/java/runner/AllureRunner.java`) is the JUnit5 class that fires
+the lifecycle events `allure-junit5` needs. It runs the same feature files as the workflow
+runner, just through a different entry point.
+
+### ReportPortal (`wiremock`)
+
+`wiremock` demonstrates ReportPortal real-time reporting. ReportPortal streams results to
+a running server — it has no local HTML output mode.
+
+```bash
+# Start a local ReportPortal instance (optional)
+docker-compose up -d   # see https://github.com/reportportal/reportportal#deployment
+
+# Export credentials
+export RP_ENDPOINT=http://localhost:8080
+export RP_API_KEY=your-api-key
+
+# Enable in build.gradle.kts:
+#   reporting { reportPortal { enabled.set(true) } }
+
+# Run tests (streams results to ReportPortal in real time)
+../gradlew :wiremock:test
+```
+
+`ReportPortalRunner` (`src/test/java/runner/ReportPortalRunner.java`) is the JUnit5 class
+that fires the lifecycle events `agent-java-junit5` needs. WireMock is started automatically
+by `karate-config.js` via `WireMockSupport.ensureStarted()` — no extra setup is needed.
+
 ## DSL in use
 
 ```kotlin
 // basic/build.gradle.kts
+plugins {
+    id("org.openprojectx.karate.gradle")
+    id("io.qameta.allure") version "3.0.1"
+}
+
 regression {
     workflowsDirs.add("src/test/resources/workflows")
     environmentsDirs.add("src/test/resources/environments")
     datasetsRootDir.set("src/test/resources/datasets")
+
+    reporting {
+        allure { enabled.set(true) }
+    }
 
     datasets {
         register("default")              { path.set("default") }

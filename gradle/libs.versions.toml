@@ -11,6 +11,8 @@ springBoot = "4.0.5"
 karate = "1.5.2"
 typesafeConfig = "1.4.3"
 snakeyaml = "2.2"
+allure = "2.27.0"
+reportPortalAgent = "5.4.1"
 junitJupiter = "5.11.4"
 
 [libraries]
@@ -23,8 +25,10 @@ kotlinxCoroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", 
 
 karateJunit5 = { module = "io.karatelabs:karate-junit5", version.ref = "karate" }
 karateCore   = { module = "io.karatelabs:karate-core",   version.ref = "karate" }
-typesafeConfig = { module = "com.typesafe:config",  version.ref = "typesafeConfig" }
-snakeyaml     = { module = "org.yaml:snakeyaml",   version.ref = "snakeyaml" }
+typesafeConfig   = { module = "com.typesafe:config",                          version.ref = "typesafeConfig" }
+snakeyaml        = { module = "org.yaml:snakeyaml",                           version.ref = "snakeyaml" }
+allureJunit5     = { module = "io.qameta.allure:allure-junit5",               version.ref = "allure" }
+reportPortalAgent = { module = "com.epam.reportportal:agent-java-junit5",     version.ref = "reportPortalAgent" }
 
 junitJupiterApi    = { module = "org.junit.jupiter:junit-jupiter-api",    version.ref = "junitJupiter" }
 junitJupiterEngine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junitJupiter" }

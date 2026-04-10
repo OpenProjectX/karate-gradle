@@ -413,26 +413,17 @@ regression {
 When `allure.enabled = true` the plugin:
 1. Adds `io.qameta.allure:allure-junit5` to `testImplementation`
 2. Sets `-Dallure.results.directory` on every `Test` task so results land in the right place
+3. Generates a `KarateRunner` class into `build/generated-test-sources/karate-gradle/` and
+   adds it to the `test` source set — no runner class needed in the consumer project
 
-You also need a JUnit5 runner class that Allure hooks into (see example/basic `AllureRunner`).
-Write it in Java — the plugin applies the `java` plugin, so `src/test/java/` is always on
-the source set. No Kotlin plugin is required in the consumer project.
+The features path used by the generated runner defaults to `classpath:features` (standard
+Karate convention). Override it if your layout differs:
 
-```java
-// src/test/java/runner/AllureRunner.java
-package runner;
-
-import com.intuit.karate.junit5.Karate;
-
-class AllureRunner {
-    @Karate.Test
-    Karate smoke() {
-        return Karate.run("classpath:features").tags("@smoke").relativeTo(getClass());
-    }
-
-    @Karate.Test
-    Karate regression() {
-        return Karate.run("classpath:features").tags("@regression").relativeTo(getClass());
+```kotlin
+regression {
+    reporting {
+        featuresPath.set("classpath:myfeatures")
+        allure { enabled.set(true) }
     }
 }
 ```
@@ -477,6 +468,7 @@ regression {
 When `reportPortal.enabled = true` the plugin:
 1. Adds `com.epam.reportportal:agent-java-junit5` to `testImplementation`
 2. Sets all `rp.*` system properties on every `Test` task so the agent streams results
+3. Generates a `KarateRunner` class (same as Allure above) — no runner class needed
 
 ```bash
 ./gradlew test   # runs tests and streams results to ReportPortal

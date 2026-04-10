@@ -76,9 +76,8 @@ test           →  JUnit5  →  allure-junit5  →  build/allure-results/    (A
 | `regressionRun` | `com.intuit.karate.Main` | Karate HTML → `build/reports/regression/` |
 | `test` + `allureReport` | JUnit5 via `AllureRunner` | Allure HTML → `build/reports/allure-report/` |
 
-`AllureRunner` (`src/test/java/runner/AllureRunner.java`) is the JUnit5 class that fires
-the lifecycle events `allure-junit5` needs. It runs the same feature files as the workflow
-runner, just through a different entry point.
+The plugin auto-generates a `KarateRunner` class into `build/generated-test-sources/karate-gradle/`
+when any reporter is enabled. No runner class is needed in the consumer project.
 
 ### ReportPortal (`wiremock`)
 
@@ -100,9 +99,7 @@ export RP_API_KEY=your-api-key
 ../gradlew :wiremock:test
 ```
 
-`ReportPortalRunner` (`src/test/java/runner/ReportPortalRunner.java`) is the JUnit5 class
-that fires the lifecycle events `agent-java-junit5` needs. WireMock is started automatically
-by `karate-config.js` via `WireMockSupport.ensureStarted()` — no extra setup is needed.
+WireMock is started automatically by `karate-config.js` via `WireMockSupport.ensureStarted()`.
 
 ## DSL in use
 

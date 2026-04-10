@@ -4,16 +4,12 @@ plugins {
 
 dependencies {
     testImplementation("com.github.tomakehurst:wiremock-jre8:2.35.2")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
-// ── JUnit5 test task ─────────────────────────────────────────────────────────
-// System properties needed when running features directly via ReportPortalRunner
-// (i.e. not via regressionRun, which injects these from workflow + env config).
+// dataset.path is needed by Karate features when run via `./gradlew test`
+// (regressionRun injects it from the workflow config; the test task does not).
 // WireMock itself is started automatically by karate-config.js via WireMockSupport.
 tasks.withType<Test>().configureEach {
-    useJUnitPlatform()
     systemProperty("dataset.path",
         "${project.projectDir}/src/test/resources/datasets/default")
 }

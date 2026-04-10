@@ -49,11 +49,9 @@ regression {
     }
 }
 
-// ── JUnit5 test task ─────────────────────────────────────────────────────────
-// System properties needed when running features directly via AllureRunner
-// (i.e. not via regressionRun, which injects these from workflow + env config).
+// dataset.path is needed by Karate features when run via `./gradlew test`
+// (regressionRun injects it from the workflow config; the test task does not).
 tasks.withType<Test>().configureEach {
-    useJUnitPlatform()
     systemProperty("dataset.path",
         "${project.projectDir}/src/test/resources/datasets/default")
 }

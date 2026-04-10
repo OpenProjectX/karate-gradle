@@ -1,3 +1,4 @@
+@ignore
 Feature: User Assertions
 
   Scenario:

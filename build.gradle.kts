@@ -31,6 +31,37 @@ tasks.named<AsciidoctorTask>("asciidoctor") {
     }
 }
 
+val syncDocsVersion by tasks.registering {
+    val versionedDocFiles = layout.files(
+        layout.projectDirectory.file("README.md"),
+        layout.projectDirectory.file("doc/user-guide.adoc"),
+    )
+
+    group = "documentation"
+    description = "Syncs plugin version snippets in README and user guide to project.version"
+
+    inputs.property("pluginVersion", project.version.toString())
+    outputs.files(versionedDocFiles)
+    inputs.files(versionedDocFiles)
+
+    doLast {
+        val pluginVersion = inputs.properties["pluginVersion"].toString()
+        val pluginVersionSnippetRegex =
+            Regex("""(id\("org\.openprojectx\.karate\.gradle"\) version ")([^"]+)(")""")
+
+        inputs.files.files.forEach { file ->
+            val original = file.readText()
+            val updated = pluginVersionSnippetRegex.replace(original) { match ->
+                "${match.groupValues[1]}$pluginVersion${match.groupValues[3]}"
+            }
+
+            if (original != updated) {
+                file.writeText(updated)
+            }
+        }
+    }
+}
+
 val verifyBasicExampleForRelease by tasks.registering(Exec::class) {
     group = "verification"
     description = "Runs the basic standalone example as a release gate"
@@ -190,6 +221,7 @@ nexusPublishing {
 configure<ReleaseExtension> {
     buildTasks.set(
         listOf(
+            "syncDocsVersion",
             "verifyReleaseExamples",
             "publishToSonatype",
             "closeAndReleaseSonatypeStagingRepository"

@@ -106,7 +106,7 @@ cd example
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("org.openprojectx.karate.gradle") version "0.2.0"
+    id("org.openprojectx.karate.gradle") version "0.1.69-SNAPSHOT"
 }
 ```
 

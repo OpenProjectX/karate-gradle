@@ -23,6 +23,12 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    if: >
+      github.event_name != 'push' ||
+      (
+        github.actor != 'github-actions[bot]' &&
+        !contains(github.event.head_commit.message, '[Gradle Release Plugin]')
+      )
 
     env:
       GRADLE_OPTS: -Dorg.gradle.daemon=false

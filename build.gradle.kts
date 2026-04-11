@@ -32,7 +32,7 @@ val verifyBasicExampleForRelease by tasks.registering(Exec::class) {
     group = "verification"
     description = "Runs the basic standalone example as a release gate"
     workingDir = rootDir
-    environment("GRADLE_USER_HOME", "/data/.gradle")
+//    environment("GRADLE_USER_HOME", "/data/.gradle")
     environment("JAVA_HOME", System.getProperty("java.home"))
     commandLine(
         "./gradlew",

@@ -1,15 +1,11 @@
 name: Publish Docs
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - "doc/**"
-      - "build.gradle.kts"
-      - "settings.gradle.kts"
-      - "gradle.properties"
-      - ".github/workflows/publish-docs.yml"
+  workflow_run:
+    workflows:
+      - Release
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -23,6 +19,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
 
     steps:

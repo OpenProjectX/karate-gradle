@@ -111,6 +111,7 @@ regression {
     workflowsDirs.add("src/test/resources/workflows")
     environmentsDirs.add("src/test/resources/environments")
     datasetsRootDir.set("src/test/resources/datasets")
+    datasetProvider.set("local")
 
     datasets {
         register("default") {
@@ -147,6 +148,10 @@ parallel = 1
 baseUrl = "https://example.test"
 timeout = 5000
 ----
+
+Environment config is currently intended to be flat and scalar.
+Use values such as URLs, tenant names, timeouts, and simple booleans.
+Do not treat nested objects or arrays as part of the supported contract yet.
 
 === Run
 
@@ -278,8 +283,8 @@ Default:
 
 Current behavior:
 
-* The task currently resolves datasets through the local provider
-* The DSL leaves room for future provider expansion
+* Only `local` is implemented today
+* S3 and Git-style providers are roadmap items, not current behavior
 
 ==== `datasets { }`
 
@@ -512,6 +517,12 @@ Environment config is resolved by merging:
 
 The selected environment overrides `base`.
 
+Current contract:
+
+* Keep environment files flat
+* Use scalar values only: strings, numbers, booleans
+* Treat nested objects and arrays as unsupported for now
+
 === Supported file formats
 
 Per directory, lookup order is:
@@ -563,9 +574,19 @@ Examples:
 * `karate.config.timeout`
 * `karate.config.tenant`
 
+This forwarding model is the reason the guide recommends flat scalar config only.
+Complex nested structures may parse, but they are not guaranteed to behave as real
+objects or lists once forwarded into Karate.
+
 == Dataset Resolution Reference
 
 Dataset resolution is logical-name based.
+
+Current provider contract:
+
+* Only the local filesystem provider is implemented
+* `datasetProvider.set("local")` is the supported setting today
+* S3 and Git-backed providers can be added later but are not available now
 
 Resolution steps:
 

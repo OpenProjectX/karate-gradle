@@ -9,9 +9,9 @@ Reproducible test runs keyed on `(commit, workflow, dataset, env)` — identical
 ## Features
 
 - **Workflow DSL** — HOCON/YAML/JSON-defined feature sets, tag filters, parallelism, and dataset bindings
-- **Environment resolution** — `base` + `<env>` config merge with runtime overrides
+- **Environment resolution** — `base` + `<env>` config merge for flat scalar config
 - **Multi-source config** — search multiple directories per source type; first match wins
-- **Dataset versioning** — named datasets with pluggable resolution (local filesystem today, S3 in the future)
+- **Dataset versioning** — named datasets resolved from the local filesystem today; S3 / Git can be added later
 - **Reporting integrations** — built-in opt-in support for Allure and ReportPortal; no boilerplate
 - **Gradle-first** — one task, no CI-specific logic; Jenkins just passes parameters
 - **Config-cache compatible** — designed for Gradle 8+ configuration cache (`warn` mode)
@@ -123,6 +123,9 @@ regression {
     // Default: ["src/test/resources/environments"]
     environmentsDirs.add("src/test/resources/environments")
 
+    // Local filesystem only for now.
+    datasetProvider.set("local")
+
     datasetsRootDir.set("datasets")   // default
 
     datasets {
@@ -191,6 +194,21 @@ timeout = 5000
 baseUrl = "https://api.prod.com"
 ```
 
+Environment files are currently intended to stay flat and scalar.
+Good fits are values like URLs, tenant names, timeouts, and simple flags.
+
+```hocon
+# recommended
+timeout = 5000
+baseUrl = "https://api.prod.com"
+tenant = "public-prod"
+```
+
+Nested objects and lists are not an official part of the current contract.
+They may parse, but the plugin currently forwards env config to Karate as flattened
+`karate.config.*` properties, so complex structures are not guaranteed to behave as
+real nested objects or lists inside Karate.
+
 ### 5. Run
 
 ```bash
@@ -251,6 +269,19 @@ Supported formats: `.conf` (HOCON), `.json`, `.yaml`, `.yml`, `.properties`.
 
 > **HOCON note:** `include` is a reserved keyword in HOCON. Inside a `tags {}` block,
 > write `"include" = [...]` (with quotes). YAML files are not affected.
+
+## Environment Config Contract
+
+Environment files are merged as `base` + `<env>`, with the selected env overriding `base`.
+
+Current recommendation:
+
+- Keep environment files flat.
+- Use scalar values only: strings, numbers, booleans.
+- Treat nested objects and arrays as unsupported for now.
+
+This keeps the contract aligned with how values are currently passed into Karate via
+flattened `karate.config.*` system properties.
 
 ### Replay Workflow
 
@@ -501,7 +532,7 @@ regression {
     // Directories searched in order for environment files
     environmentsDirs.add("src/test/resources/environments")  // default
 
-    datasetProvider.set("local")    // "local" | "s3" (future)
+    datasetProvider.set("local")    // local only today; S3 / Git are roadmap items
     datasetsRootDir.set("datasets") // default
 
     datasets {

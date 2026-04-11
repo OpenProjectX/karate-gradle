@@ -13,6 +13,10 @@ import java.io.File
  * Supported file formats per source: `.conf` (HOCON), `.json`, `.properties`.
  *
  * Merge order: `<env>` overrides `base` (shallow merge via Typesafe Config fallback).
+ *
+ * The resolved config is flattened into a `Map<String, Any>` so it can be forwarded as
+ * `karate.config.*` system properties. This is intended for flat scalar settings such as
+ * URLs, timeouts, tenant names, and simple flags.
  */
 class EnvResolver(private val sources: List<ConfigSource>) {
 

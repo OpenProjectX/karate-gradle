@@ -276,7 +276,7 @@ The docs publishing workflow is:
 
 It runs when:
 
-- code or doc changes affecting documentation are pushed to `master`
+- the `Release` workflow completes successfully
 - manually triggered via `workflow_dispatch`
 
 What it does:
@@ -286,6 +286,9 @@ What it does:
 3. Runs `./gradlew asciidoctor`
 4. Uploads `build/docs` as a GitHub Pages artifact
 5. Deploys the artifact to the repository Pages site
+
+This sequencing is intentional so release and documentation publication do not run in parallel.
+The release workflow completes first, then the docs workflow publishes the refreshed site.
 
 ### Configuration-cache note
 

@@ -16,7 +16,7 @@ import javax.inject.Inject
  *     workflowsDirs.add("src/test/resources/workflows")
  *     environmentsDirs.add("src/test/resources/environments")
  *     datasetsRootDir.set("src/test/resources/datasets")
- *     datasetProvider.set("local")
+ *     datasetProvider.set("local") // local only today
  *
  *     datasets {
  *         register("default") { path.set("datasets/default") }
@@ -38,7 +38,7 @@ abstract class RegressionExtension @Inject constructor(objects: ObjectFactory) {
     val environmentsDirs: ListProperty<String> = objects.listProperty(String::class.java)
         .convention(listOf("src/test/resources/environments"))
 
-    /** "local" | "s3" | custom fully-qualified class name. */
+    /** Dataset provider type. Currently only `"local"` is implemented. */
     val datasetProvider: Property<String> = objects.property(String::class.java)
         .convention("local")
 

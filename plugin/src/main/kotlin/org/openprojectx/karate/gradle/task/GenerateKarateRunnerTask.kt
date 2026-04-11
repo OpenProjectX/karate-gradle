@@ -9,8 +9,8 @@ import org.gradle.api.tasks.TaskAction
  * Generates two Java source files into [outputDir] that together form the JUnit5
  * entry point used by [RegressionRunTask]:
  *
- * - `KarateRunner` — a `@Karate.Test` class that reads its configuration (feature
- *   paths, tag filters, parallelism) from system properties set by `regressionRun`.
+ * - `KarateRunner` — a JUnit5 `@TestFactory` class that reads its configuration
+ *   (feature paths, tag filters) from system properties set by `regressionRun`.
  * - `KarateJUnit5Launcher` — a `main` class that drives the JUnit Platform Launcher,
  *   so that reporter agents (Allure, ReportPortal) that register as JUnit
  *   `TestExecutionListener` implementations are picked up automatically via
@@ -22,10 +22,9 @@ import org.gradle.api.tasks.TaskAction
  * System properties consumed by `KarateRunner` at runtime:
  * | Property                    | Source              |
  * |-----------------------------|---------------------|
- * | `karate.runner.features`    | workflow.features   |
+ * | `karate.runner.features`    | workflow.features     |
  * | `karate.runner.tags.include`| workflow.tags.include |
  * | `karate.runner.tags.exclude`| workflow.tags.exclude |
- * | `karate.runner.threads`     | workflow.parallel   |
  */
 abstract class GenerateKarateRunnerTask : DefaultTask() {
 

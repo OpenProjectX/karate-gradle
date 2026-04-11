@@ -22,8 +22,8 @@ import org.openprojectx.karate.gradle.runner.KarateRunnerAdapter
  *
  * Two execution paths:
  * ```
- * regressionRun  →  com.intuit.karate.Main  →  build/reports/regression/  (Karate HTML)
- * test           →  JUnit5 KarateRunner     →  Allure / ReportPortal agents (if enabled)
+ * regressionRun  →  JUnit5 KarateJUnit5Launcher  →  build/reports/regression/  (Karate HTML)
+ * test           →  Gradle Test + JUnit5         →  Allure / ReportPortal agents (if enabled)
  * ```
  *
  * Consumer usage:

@@ -37,8 +37,8 @@ regression {
     //     2. Export RP_ENDPOINT and RP_API_KEY environment variables
     //     3. ./gradlew :wiremock:test
     //
-    // Note: regressionRun uses com.intuit.karate.Main (not JUnit5), so results
-    //       are only streamed by `./gradlew test`, not `regressionRun`.
+    // regressionRun also executes through a generated JUnit Platform launcher,
+    // so the same listener-based integrations can attach there as well.
     reporting {
         reportPortal {
             enabled.set(false)

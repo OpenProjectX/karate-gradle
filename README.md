@@ -365,24 +365,26 @@ sh """
 
 ### How reporting works
 
-`regressionRun` runs `com.intuit.karate.Main` via a forked JVM — it always generates
-Karate's own HTML report in `build/reports/regression/`. It does **not** fire JUnit5
-lifecycle events.
+`regressionRun` forks a JVM and launches the generated `KarateJUnit5Launcher` on the
+consumer test classpath. It runs the configured workflow through JUnit Platform and
+generates Karate's HTML report in `build/reports/regression/`.
 
 Allure and ReportPortal both work by hooking into JUnit5 lifecycle events. Their results
-are therefore produced by the standard **`test`** Gradle task running a
-`@Karate.Test`-annotated JUnit5 class — not by `regressionRun`.
+are therefore available anywhere the generated JUnit entry point runs, including
+`regressionRun` and the standard **`test`** Gradle task.
 
-```
-regressionRun  →  com.intuit.karate.Main  →  build/reports/regression/  (Karate HTML)
-test           →  JUnit5  →  allure-junit5  →  build/allure-results/    (Allure JSON)
-                         →  allureReport   →  build/reports/allure-report/ (Allure HTML)
-                         →  agent-junit5   →  streams to ReportPortal server
+``` 
+regressionRun  →  KarateJUnit5Launcher  →  JUnit Platform  →  build/reports/regression/  (Karate HTML)
+                                                     →  allure-junit5  →  build/allure-results/ (Allure JSON)
+                                                     →  agent-junit5   →  streams to ReportPortal server
+test           →  Gradle Test          →  JUnit Platform  →  allure-junit5  →  build/allure-results/ (Allure JSON)
+                                                     →  agent-junit5   →  streams to ReportPortal server
+allureReport   →  build/allure-results/              →  build/reports/allure-report/       (Allure HTML)
 ```
 
-The two flows are complementary: `regressionRun` for workflow-driven, parameterized CI
-runs; `test` + `allureReport` for rich HTML reporting during development or in pipelines
-that need Allure.
+The two flows are complementary: `regressionRun` adds workflow-aware inputs such as
+dataset, environment, and commit parameters, while `test` remains the standard Gradle
+entry point for plain JUnit execution. Both can feed listener-based integrations.
 
 ---
 
@@ -413,8 +415,9 @@ regression {
 When `allure.enabled = true` the plugin:
 1. Adds `io.qameta.allure:allure-junit5` to `testImplementation`
 2. Sets `-Dallure.results.directory` on every `Test` task so results land in the right place
-3. Generates a `KarateRunner` class into `build/generated-test-sources/karate-gradle/` and
-   adds it to the `test` source set — no runner class needed in the consumer project
+3. Generates `KarateRunner` and `KarateJUnit5Launcher` into
+   `build/generated-test-sources/karate-gradle/` and adds them to the `test` source set
+   — no runner class needed in the consumer project
 
 The features path used by the generated runner defaults to `classpath:features` (standard
 Karate convention). Override it if your layout differs:
@@ -468,7 +471,8 @@ regression {
 When `reportPortal.enabled = true` the plugin:
 1. Adds `com.epam.reportportal:agent-java-junit5` to `testImplementation`
 2. Sets all `rp.*` system properties on every `Test` task so the agent streams results
-3. Generates a `KarateRunner` class (same as Allure above) — no runner class needed
+3. Uses the same generated `KarateRunner` / `KarateJUnit5Launcher` entry point as
+   `regressionRun` and `test` — no runner class needed
 
 ```bash
 ./gradlew test   # runs tests and streams results to ReportPortal
@@ -559,7 +563,7 @@ EnvResolver             ← searches environmentsDirs, merges base + <env> confi
    ↓
 KarateRunnerAdapter     ← builds CLI args
    ↓
-ExecOperations.javaexec ← forks JVM, runs com.intuit.karate.Main
+ExecOperations.javaexec ← forks JVM, runs KarateJUnit5Launcher
    ↓
 build/reports/regression/
 ```

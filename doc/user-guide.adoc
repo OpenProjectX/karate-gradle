@@ -1,0 +1,933 @@
+= karate-gradle User Guide and Reference
+:toc:
+:toclevels: 3
+:sectnums:
+:source-highlighter: rouge
+
+== Overview
+
+`karate-gradle` is a Gradle-native, workflow-driven test execution plugin built on top of Karate.
+It gives you a stable entry point for regression-style runs while keeping execution inside the
+JUnit Platform ecosystem so that JUnit-based tooling integrations continue to work.
+
+At a high level, the plugin provides:
+
+* A `regression { }` DSL for workflow, environment, dataset, and reporting configuration
+* A `regressionRun` task for workflow-aware execution
+* Generated JUnit entry points so Karate scenarios run through JUnit Platform
+* Opt-in reporting integrations such as Allure and ReportPortal
+
+The core execution inputs are:
+
+* `workflow`
+* `env`
+* `dataset`
+* `commit`
+
+Those inputs drive reproducible runs across local development and CI.
+
+== Mental Model
+
+=== What `regressionRun` actually does
+
+`regressionRun` does not launch Karate's legacy standalone CLI main class.
+Instead, it:
+
+. Loads the selected workflow definition
+. Resolves the effective environment configuration
+. Resolves the dataset path
+. Generates system properties for Karate and reporting integrations
+. Forks a JVM with the consumer project's test runtime classpath
+. Launches a generated JUnit Platform entry point
+
+That generated entry point consists of:
+
+* `KarateRunner`
+  A generated JUnit5 `@TestFactory` class that builds the Karate run from system properties
+* `KarateJUnit5Launcher`
+  A generated `main` class that executes the JUnit Platform launcher
+
+This architecture is important because many ecosystem integrations for Karate work through JUnit.
+
+=== Execution flows
+
+[source,text]
+----
+regressionRun  ->  KarateJUnit5Launcher  ->  JUnit Platform  ->  Karate HTML report
+                                                     ->  JUnit listeners such as Allure / ReportPortal
+
+test           ->  Gradle Test           ->  JUnit Platform  ->  JUnit listeners such as Allure / ReportPortal
+
+allureReport   ->  build/allure-results  ->  Allure HTML report
+----
+
+Use `regressionRun` when you want workflow-aware execution with dataset, environment, and commit inputs.
+Use `test` when you want the standard Gradle JUnit entry point.
+
+== Quickstart
+
+=== Apply the plugin
+
+[source,kotlin]
+----
+plugins {
+    id("org.openprojectx.karate.gradle") version "0.2.0"
+}
+----
+
+The plugin automatically adds `io.karatelabs:karate-junit5` to `testImplementation`.
+
+=== Minimal configuration
+
+[source,kotlin]
+----
+regression {
+    workflowsDirs.add("src/test/resources/workflows")
+    environmentsDirs.add("src/test/resources/environments")
+    datasetsRootDir.set("src/test/resources/datasets")
+
+    datasets {
+        register("default") {
+            path.set("default")
+        }
+    }
+}
+----
+
+=== Minimal workflow
+
+[source,hocon]
+----
+name = regression
+
+features = [
+  "classpath:features"
+]
+
+tags {
+  "include" = ["@regression"]
+  exclude = ["@ignore"]
+}
+
+env = local
+dataset = default
+parallel = 1
+----
+
+=== Minimal environment config
+
+[source,hocon]
+----
+baseUrl = "https://example.test"
+timeout = 5000
+----
+
+=== Run
+
+[source,bash]
+----
+./gradlew regressionRun \
+  -Pworkflow=regression \
+  -Penv=local \
+  -Pdataset=default \
+  -Pcommit=abc123
+----
+
+The Karate HTML report is written under `build/reports/regression/`.
+
+== Recommended Consumer Layout
+
+[source,text]
+----
+your-project/
+|- build.gradle.kts
+`- src/test/resources/
+   |- features/
+   |  |- user/
+   |  `- payment/
+   |- workflows/
+   |  |- smoke.conf
+   |  `- regression.conf
+   |- environments/
+   |  |- base.conf
+   |  |- local.conf
+   |  `- staging.conf
+   `- datasets/
+      |- default/
+      `- edge-cases/
+----
+
+This layout is conventional, not mandatory. The plugin works with other layouts as long as the
+configured directories and classpath feature paths are consistent.
+
+== DSL Reference
+
+=== `regression { }`
+
+Top-level extension:
+
+[source,kotlin]
+----
+regression {
+    workflowsDirs.add("src/test/resources/workflows")
+    environmentsDirs.add("src/test/resources/environments")
+    datasetsRootDir.set("src/test/resources/datasets")
+    datasetProvider.set("local")
+
+    datasets {
+        register("default") {
+            path.set("default")
+        }
+    }
+
+    reporting {
+        allure {
+            enabled.set(true)
+        }
+        reportPortal {
+            enabled.set(false)
+        }
+    }
+}
+----
+
+==== `workflowsDirs`
+
+Type: `ListProperty<String>`
+
+Default:
+
+[source,text]
+----
+["src/test/resources/workflows"]
+----
+
+Meaning:
+
+* One or more directories searched in priority order
+* The first directory containing a matching workflow file wins
+
+==== `environmentsDirs`
+
+Type: `ListProperty<String>`
+
+Default:
+
+[source,text]
+----
+["src/test/resources/environments"]
+----
+
+Meaning:
+
+* One or more directories searched in priority order
+* Resolution is performed for both `base` and the selected environment name
+
+==== `datasetsRootDir`
+
+Type: `Property<String>`
+
+Default:
+
+[source,text]
+----
+"datasets"
+----
+
+Meaning:
+
+* Root directory used by the local dataset provider
+* Registered dataset paths are resolved relative to this root
+
+==== `datasetProvider`
+
+Type: `Property<String>`
+
+Default:
+
+[source,text]
+----
+"local"
+----
+
+Current behavior:
+
+* The task currently resolves datasets through the local provider
+* The DSL leaves room for future provider expansion
+
+==== `datasets { }`
+
+Type: `NamedDomainObjectContainer<DatasetSpec>`
+
+Example:
+
+[source,kotlin]
+----
+datasets {
+    register("default") {
+        path.set("default")
+    }
+    register("incident-2026-04-09") {
+        path.set("incidents/2026-04-09")
+    }
+}
+----
+
+Each dataset registration has:
+
+* `name`
+  The logical dataset name used from CLI or workflow config
+* `path`
+  Relative path under `datasetsRootDir`
+
+Default for `path`:
+
+* If omitted, the dataset name itself is used
+
+Fallback behavior:
+
+* If no explicit registration exists, dataset resolution still falls back to
+  `datasetsRootDir/<datasetName>`
+
+=== `reporting { }`
+
+Nested reporting extension:
+
+[source,kotlin]
+----
+reporting {
+    allure {
+        enabled.set(true)
+    }
+    reportPortal {
+        enabled.set(true)
+    }
+}
+----
+
+==== `allure { }`
+
+[cols="1,1,3"]
+|===
+|Property |Default |Meaning
+
+|`enabled`
+|`false`
+|Enables the Allure JUnit5 adapter integration
+
+|`version`
+|`2.27.0`
+|Version of `io.qameta.allure:allure-junit5`
+
+|`resultsDir`
+|`allure-results`
+|Directory relative to the Gradle `build/` directory where raw Allure result files are written
+|===
+
+When enabled, the plugin:
+
+* Adds `io.qameta.allure:allure-junit5` to `testImplementation`
+* Passes `allure.results.directory` to `regressionRun`
+* Passes the same property to Gradle `Test` tasks
+
+==== `reportPortal { }`
+
+[cols="1,1,3"]
+|===
+|Property |Default |Meaning
+
+|`enabled`
+|`false`
+|Enables the ReportPortal JUnit5 agent integration
+
+|`agentVersion`
+|`5.4.1`
+|Version of `com.epam.reportportal:agent-java-junit5`
+
+|`endpoint`
+|
+|ReportPortal server URL
+
+|`apiKey`
+|
+|ReportPortal authentication token
+
+|`project`
+|
+|ReportPortal project name
+
+|`launch`
+|
+|Launch name shown in ReportPortal
+
+|`description`
+|
+|Optional human-readable launch description
+
+|`attributes`
+|
+|List of `key:value` or plain tags joined into the format expected by the agent
+|===
+
+When enabled, the plugin:
+
+* Adds `com.epam.reportportal:agent-java-junit5` to `testImplementation`
+* Passes the `rp.*` system properties to `regressionRun`
+* Passes the same `rp.*` properties to Gradle `Test` tasks
+
+Keep `apiKey` out of version control.
+Prefer environment variables or Gradle properties.
+
+== Workflow Definition Reference
+
+Workflows define what runs and with which defaults.
+
+=== Supported file formats
+
+Per directory, lookup order is:
+
+[source,text]
+----
+.conf -> .json -> .yaml -> .yml -> .properties
+----
+
+The first matching file in the first matching directory wins.
+
+=== Workflow schema
+
+[cols="1,1,3"]
+|===
+|Field |Default |Meaning
+
+|`name`
+|
+|Logical workflow name. Required.
+
+|`features`
+|`[]`
+|Karate feature paths passed into the generated runner
+
+|`tags.include`
+|`[]`
+|Tags to include
+
+|`tags.exclude`
+|`[]`
+|Tags to exclude
+
+|`env`
+|`base`
+|Default environment name if `-Penv` is not supplied
+
+|`dataset`
+|`default`
+|Default dataset name if `-Pdataset` is not supplied
+
+|`parallel`
+|`1`
+|Parallelism forwarded into JUnit Platform fixed parallel execution settings
+
+|`mode`
+|`standard`
+|Reserved workflow mode field currently carried through the model
+|===
+
+=== HOCON example
+
+[source,hocon]
+----
+name = regression
+
+features = [
+  "classpath:features/user"
+  "classpath:features/payment/payment-lifecycle.feature"
+]
+
+tags {
+  "include" = ["@regression"]
+  exclude = ["@ignore"]
+}
+
+env = staging
+dataset = edge-cases
+parallel = 4
+mode = standard
+----
+
+=== YAML example
+
+[source,yaml]
+----
+name: regression
+features:
+  - classpath:features/user
+  - classpath:features/payment/payment-lifecycle.feature
+tags:
+  include: ["@regression"]
+  exclude: ["@ignore"]
+env: staging
+dataset: edge-cases
+parallel: 4
+mode: standard
+----
+
+=== Notes
+
+* In HOCON, `include` is a reserved word, so quote it inside `tags`
+* `features` is optional, but a practical workflow normally specifies one or more paths
+* `parallel` affects JUnit Platform configuration, not a separate Karate standalone CLI thread flag
+
+== Environment Resolution Reference
+
+Environment config is resolved by merging:
+
+. `base`
+. the selected environment such as `local`, `staging`, or `prod`
+
+The selected environment overrides `base`.
+
+=== Supported file formats
+
+Per directory, lookup order is:
+
+[source,text]
+----
+.conf -> .json -> .yaml -> .yml -> .properties
+----
+
+=== Example
+
+[source,hocon]
+----
+// base.conf
+timeout = 5000
+connectTimeout = 3000
+tenant = "public"
+----
+
+[source,hocon]
+----
+// staging.conf
+baseUrl = "https://staging.example.test"
+tenant = "staging-a"
+----
+
+Effective resolved map:
+
+[source,json]
+----
+{
+  "timeout": 5000,
+  "connectTimeout": 3000,
+  "tenant": "staging-a",
+  "baseUrl": "https://staging.example.test"
+}
+----
+
+At runtime, the plugin forwards these entries as system properties with the prefix:
+
+[source,text]
+----
+karate.config.<key>
+----
+
+Examples:
+
+* `karate.config.baseUrl`
+* `karate.config.timeout`
+* `karate.config.tenant`
+
+== Dataset Resolution Reference
+
+Dataset resolution is logical-name based.
+
+Resolution steps:
+
+. Determine the effective dataset name
+  Either `-Pdataset=<name>` or the workflow's `dataset` field
+. Look up a registered dataset path if one exists
+. Otherwise fall back to `<datasetsRootDir>/<datasetName>`
+. Verify the resolved directory exists
+
+=== Example
+
+[source,kotlin]
+----
+regression {
+    datasetsRootDir.set("src/test/resources/datasets")
+
+    datasets {
+        register("default") {
+            path.set("default")
+        }
+        register("edge-cases") {
+            path.set("advanced/edge-cases")
+        }
+    }
+}
+----
+
+Result:
+
+* `default` -> `src/test/resources/datasets/default`
+* `edge-cases` -> `src/test/resources/datasets/advanced/edge-cases`
+
+If the resolved directory does not exist, the task fails.
+
+== Runtime System Properties
+
+The plugin assembles system properties for the forked JVM.
+The most important ones are:
+
+[cols="1,3"]
+|===
+|Property |Purpose
+
+|`karate.env`
+|Selected environment name
+
+|`karate.workflow`
+|Workflow name
+
+|`dataset.path`
+|Resolved absolute dataset directory path
+
+|`karate.runner.features`
+|Comma-separated feature paths for the generated runner
+
+|`karate.runner.tags.include`
+|Comma-separated include tags
+
+|`karate.runner.tags.exclude`
+|Comma-separated exclude tags
+
+|`junit.jupiter.execution.parallel.enabled`
+|Turns on JUnit Platform parallel execution
+
+|`junit.jupiter.execution.parallel.config.strategy`
+|Uses fixed parallel strategy
+
+|`junit.jupiter.execution.parallel.config.fixed.parallelism`
+|Parallel value derived from the workflow
+
+|`karate.output.dir`
+|Karate HTML report output directory
+|===
+
+The plugin may also forward:
+
+* `karate.commit`
+* `allure.results.directory`
+* `rp.endpoint`
+* `rp.api.key`
+* `rp.project`
+* `rp.launch`
+* `rp.description`
+* `rp.attributes`
+
+== CLI and Task Usage
+
+=== Primary task
+
+[source,bash]
+----
+./gradlew regressionRun
+----
+
+=== Supported Gradle properties
+
+[cols="1,2,3"]
+|===
+|Gradle property |Example |Meaning
+
+|`workflow`
+|`-Pworkflow=regression`
+|Workflow name to load. Defaults to `regression` at the task level.
+
+|`env`
+|`-Penv=staging`
+|Overrides the workflow's default environment.
+
+|`dataset`
+|`-Pdataset=edge-cases`
+|Overrides the workflow's default dataset.
+
+|`commit`
+|`-Pcommit=abc123`
+|Optional commit identifier forwarded as `karate.commit`.
+|===
+
+=== Common commands
+
+[source,bash]
+----
+./gradlew regressionRun -Pworkflow=smoke
+./gradlew regressionRun -Pworkflow=regression -Penv=staging
+./gradlew regressionRun -Pworkflow=regression -Pdataset=edge-cases
+./gradlew regressionRun -Pworkflow=regression -Penv=prod -Pdataset=default -Pcommit=abc123
+----
+
+== Reporting Guide
+
+=== Allure
+
+Configuration:
+
+[source,kotlin]
+----
+plugins {
+    id("org.openprojectx.karate.gradle")
+    id("io.qameta.allure") version "3.0.1"
+}
+
+allure {
+    adapter { autoconfigure.set(false) }
+}
+
+regression {
+    reporting {
+        allure {
+            enabled.set(true)
+            resultsDir.set("allure-results")
+        }
+    }
+}
+----
+
+Run and generate the HTML report:
+
+[source,bash]
+----
+./gradlew regressionRun
+./gradlew test
+./gradlew allureReport
+----
+
+Output locations:
+
+* Raw results: `build/allure-results/`
+* HTML report: `build/reports/allure-report/`
+
+=== ReportPortal
+
+Configuration:
+
+[source,kotlin]
+----
+regression {
+    reporting {
+        reportPortal {
+            enabled.set(true)
+            endpoint.set(providers.environmentVariable("RP_ENDPOINT"))
+            apiKey.set(providers.environmentVariable("RP_API_KEY"))
+            project.set("karate-regression")
+            launch.set("nightly-regression")
+            description.set("Nightly workflow-driven run")
+            attributes.set(listOf("team:qa", "env:staging"))
+        }
+    }
+}
+----
+
+Run:
+
+[source,bash]
+----
+./gradlew regressionRun -Pworkflow=regression
+----
+
+or:
+
+[source,bash]
+----
+./gradlew test
+----
+
+ReportPortal has no local HTML output mode.
+It streams results to the configured server.
+
+=== Reporter behavior summary
+
+[cols="1,3"]
+|===
+|Execution path |Behavior
+
+|`regressionRun`
+|Runs through generated JUnit Platform launcher, so JUnit listeners can attach
+
+|`test`
+|Runs through Gradle's standard JUnit execution path, so JUnit listeners can attach
+
+|`allureReport`
+|Post-processes Allure raw results into static HTML
+|===
+
+== Example Consumer Configuration
+
+[source,kotlin]
+----
+plugins {
+    id("org.openprojectx.karate.gradle")
+    id("io.qameta.allure") version "3.0.1"
+}
+
+allure {
+    adapter { autoconfigure.set(false) }
+}
+
+regression {
+    workflowsDirs.add("src/test/resources/workflows")
+    environmentsDirs.add("src/test/resources/environments")
+    datasetsRootDir.set("src/test/resources/datasets")
+
+    datasets {
+        register("default") {
+            path.set("default")
+        }
+        register("edge-cases") {
+            path.set("advanced/edge-cases")
+        }
+    }
+
+    reporting {
+        allure {
+            enabled.set(true)
+        }
+        reportPortal {
+            enabled.set(false)
+        }
+    }
+}
+----
+
+== Example `karate-config.js`
+
+[source,javascript]
+----
+function fn() {
+    var env = karate.env || 'local';
+    var config = {
+        env: env,
+        workflow: karate.properties['karate.workflow'],
+        datasetPath: karate.properties['dataset.path'],
+        baseUrl: karate.properties['karate.config.baseUrl'],
+        tenant: karate.properties['karate.config.tenant'] || 'public'
+    };
+
+    karate.configure('headers', {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Tenant': config.tenant
+    });
+
+    return config;
+}
+----
+
+== CI Usage
+
+The plugin is designed so CI only needs to pass parameters.
+
+=== Jenkins example
+
+[source,groovy]
+----
+sh """
+./gradlew regressionRun \
+  -Pworkflow=${params.WORKFLOW} \
+  -Penv=${params.ENV} \
+  -Pdataset=${params.DATASET} \
+  -Pcommit=${params.GIT_COMMIT}
+"""
+----
+
+=== GitHub Actions example
+
+[source,yaml]
+----
+- name: Run workflow-driven Karate regression
+  run: |
+    ./gradlew regressionRun \
+      -Pworkflow=regression \
+      -Penv=staging \
+      -Pdataset=default \
+      -Pcommit=${GITHUB_SHA}
+----
+
+== Troubleshooting
+
+=== `Workflow '<name>' not found`
+
+Check:
+
+* The file exists under one of the configured `workflowsDirs`
+* The file name matches the logical workflow name
+* A higher-priority directory does not contain an unexpected conflicting file
+
+=== Dataset resolution failure
+
+Typical cause:
+
+* The resolved dataset directory does not exist
+
+Check:
+
+* `datasetsRootDir`
+* explicit dataset registration paths
+* the value passed via `-Pdataset`
+
+=== Environment values not visible in Karate
+
+Check:
+
+* `base.conf` and `<env>.conf` are in one of the configured environment directories
+* your `karate-config.js` reads `karate.properties['karate.config.<key>']`
+* the selected environment is the one you expect
+
+=== Reporting integration does not fire
+
+Check:
+
+* The reporter is enabled in `reporting { }`
+* The necessary plugin or downstream tool is present where required
+* Credentials such as `RP_API_KEY` are available
+* You are looking at the correct output:
+  Allure uses `build/allure-results/` plus `allureReport`, while ReportPortal streams remotely
+
+=== Long-running process after tests complete
+
+Typical cause:
+
+* A test-support server or helper thread was started inside the forked JVM and not stopped
+
+Recommendation:
+
+* Make embedded servers and external resources shut down explicitly at suite end
+* Do not rely solely on JVM shutdown hooks if those resources keep non-daemon threads alive
+
+== Migration Notes
+
+=== From older standalone-runner assumptions
+
+If you previously assumed `regressionRun` behaved like a Karate standalone CLI invocation,
+update that assumption.
+
+Current behavior:
+
+* `regressionRun` is JUnit-based
+* listener-driven tooling can participate
+* generated JUnit entry points are part of the plugin's normal execution model
+
+This is intentional and aligns the plugin with the wider Java tooling ecosystem.
+
+== Summary
+
+`karate-gradle` gives you:
+
+* workflow-aware execution through `regressionRun`
+* JUnit Platform compatibility for integrations
+* simple environment and dataset resolution
+* opt-in reporting integrations
+* a Gradle-native model suitable for both local development and CI
+
+For practical examples, see the consumer build under `example/`.

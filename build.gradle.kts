@@ -1,11 +1,24 @@
 import net.researchgate.release.ReleaseExtension
+import org.asciidoctor.gradle.jvm.AsciidoctorTask
 
 plugins {
     `maven-publish`
     signing
+    id("org.asciidoctor.jvm.convert") version "4.0.2"
     id("io.github.gradle-nexus.publish-plugin") version "2.0.0" // nexus publish/close/release
     id("net.researchgate.release") version "3.1.0"
 
+}
+
+tasks.named<AsciidoctorTask>("asciidoctor") {
+    group = "documentation"
+    description = "Generates HTML documentation from AsciiDoc sources"
+    notCompatibleWithConfigurationCache("Asciidoctor task configuration is not configuration-cache compatible in this build")
+    setSourceDir(file("doc"))
+    sources {
+        include("user-guide.adoc")
+    }
+    setOutputDir(layout.buildDirectory.dir("docs").get().asFile)
 }
 
 val verifyBasicExampleForRelease by tasks.registering(Exec::class) {

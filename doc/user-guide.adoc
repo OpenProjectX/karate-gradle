@@ -97,7 +97,7 @@ Use `test` when you want the standard Gradle JUnit entry point.
 [source,kotlin]
 ----
 plugins {
-    id("org.openprojectx.karate.gradle") version "0.2.0"
+    id("org.openprojectx.karate.gradle") version "0.1.70"
 }
 ----
 

@@ -672,6 +672,112 @@ The plugin may also forward:
 * `rp.description`
 * `rp.attributes`
 
+== Karate Runtime Contract
+
+This plugin sits on top of Karate. That means some runtime values come from Karate itself,
+while others are injected by `karate-gradle`.
+
+=== What belongs to Karate
+
+These are Karate runtime conventions or APIs that already exist independently of this plugin:
+
+* `karate.env`
+  Karate's environment name
+* `karate.properties['...']`
+  Access to JVM system properties from `karate-config.js` or features
+* `karate.configure(...)`
+  Karate runtime configuration such as headers, timeouts, hooks, and logging
+* `karate-config.js`
+  The user's file for building and returning the final Karate config object
+
+The plugin should not replace or auto-generate the user's `karate-config.js`.
+That file remains the right place for suite-specific behavior.
+
+=== What belongs to this plugin
+
+These values are injected by `karate-gradle` into the forked JVM:
+
+[cols="1,1,3"]
+|===
+|Property |Owner |Meaning
+
+|`karate.env`
+|Karate
+|Selected environment name used by the run
+
+|`karate.workflow`
+|Plugin
+|Resolved workflow name
+
+|`dataset.path`
+|Plugin
+|Resolved dataset directory path
+
+|`karate.commit`
+|Plugin
+|Optional commit identifier from `-Pcommit`
+
+|`karate.config.<key>`
+|Plugin
+|Flattened entries from merged environment config
+
+|`allure.results.directory`
+|Plugin / Allure integration
+|Allure raw results directory
+
+|`rp.*`
+|Plugin / ReportPortal integration
+|ReportPortal agent settings
+|===
+
+=== How users should read them
+
+The intended mapping is:
+
+. `karate-gradle` resolves workflow, dataset, env, and reporting inputs
+. It forwards those into the JVM as system properties
+. Karate exposes those properties through `karate.properties['...']`
+. The user's `karate-config.js` reads the values it cares about and returns a final config object
+
+Example:
+
+[source,javascript]
+----
+function fn() {
+    var config = {
+        env: karate.env || 'local',
+        workflow: karate.properties['karate.workflow'],
+        datasetPath: karate.properties['dataset.path'],
+        baseUrl: karate.properties['karate.config.baseUrl'],
+        tenant: karate.properties['karate.config.tenant'] || 'public'
+    };
+
+    return config;
+}
+----
+
+=== What should stay manual
+
+These should remain user-owned in `karate-config.js`:
+
+* default headers
+* auth setup
+* local test-server startup and shutdown
+* feature-suite-specific defaults
+* shaping the final returned config object
+
+=== What the plugin guarantees
+
+The plugin's job is to provide a clean runtime contract, not to own the user's test setup.
+
+Current contract:
+
+* workflow selection is resolved before Karate starts
+* dataset resolution is resolved before Karate starts
+* env config is resolved before Karate starts
+* resolved env entries are exposed as flattened `karate.config.*` properties
+* users read those values explicitly in `karate-config.js` or features
+
 == CLI and Task Usage
 
 === Primary task

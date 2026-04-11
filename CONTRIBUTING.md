@@ -406,6 +406,14 @@ This workflow:
 4. Materializes the signing key from a GitHub secret into a temporary file
 5. Runs `./gradlew release`
 
+Trigger model:
+
+- automatically on every push to `master`
+- manually through `workflow_dispatch`
+
+The manual trigger accepts an optional `gradle_args` input for extra release flags such as
+`--stacktrace`.
+
 The release workflow is intentionally separate from documentation publishing.
 
 Reason:
@@ -436,7 +444,8 @@ export OSSRH_PASSWORD=<sonatype-token-password>
 The GitHub Actions release workflow expects:
 
 ```text
-SIGNING_KEY
+RELEASE_GITHUB_TOKEN
+SIGNING_KEY_ASC
 SIGNING_KEY_PASSWORD
 OSSRH_USERNAME
 OSSRH_PASSWORD
@@ -444,7 +453,8 @@ OSSRH_PASSWORD
 
 Notes:
 
-- `SIGNING_KEY` should contain the ASCII-armored private key content itself
+- `RELEASE_GITHUB_TOKEN` is used by `actions/checkout` so the workflow can push release commits and tags
+- `SIGNING_KEY_ASC` should contain the ASCII-armored private key content itself
 - the workflow writes that secret to a temporary file and exports `SIGNING_KEY_FILE` for Gradle
 - `OSSRH_USERNAME` and `OSSRH_PASSWORD` should be Sonatype token credentials
 

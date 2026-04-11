@@ -223,6 +223,77 @@ Use `feat` for new features, `fix` for bug fixes, `test` for test-only changes, 
 
 ---
 
+## Documentation
+
+User documentation is authored in AsciiDoc under `doc/`.
+
+### Build docs locally
+
+```bash
+./gradlew asciidoctor
+```
+
+Generated HTML lands in:
+
+```text
+build/docs/
+```
+
+The main user guide currently lives at:
+
+```text
+doc/user-guide.adoc
+```
+
+### GitHub Pages publishing model
+
+This repository is configured to publish documentation to the repository site via
+GitHub Pages and GitHub Actions.
+
+Workflow:
+
+```text
+doc/*.adoc -> ./gradlew asciidoctor -> build/docs -> GitHub Pages artifact -> repository site
+```
+
+Important clarification:
+
+- This setup publishes to the repository site
+- It does **not** maintain or push a `gh-pages` branch
+- GitHub Pages should be configured in repository settings to use `GitHub Actions` as the source
+
+This means the docs site is served by GitHub Pages, but deployment is driven by the Actions
+workflow in `.github/workflows/publish-docs.yml` rather than by committing generated files to
+a branch.
+
+### Documentation workflow
+
+The docs publishing workflow is:
+
+```text
+.github/workflows/publish-docs.yml
+```
+
+It runs when:
+
+- code or doc changes affecting documentation are pushed to `master`
+- manually triggered via `workflow_dispatch`
+
+What it does:
+
+1. Checks out the repository
+2. Sets up JDK 17
+3. Runs `./gradlew asciidoctor`
+4. Uploads `build/docs` as a GitHub Pages artifact
+5. Deploys the artifact to the repository Pages site
+
+### Configuration-cache note
+
+The Asciidoctor task currently generates HTML successfully, but it is not configuration-cache
+compatible in this build. This does not block doc generation or Pages deployment.
+
+---
+
 ## Reporting Issues
 
 Open an issue at [github.com/OpenProjectX/karate-gradle/issues](https://github.com/OpenProjectX/karate-gradle/issues) with:
@@ -319,6 +390,38 @@ cd consumer
 
 Releases are managed via `net.researchgate.release` and published to Maven Central through Sonatype.
 
+### GitHub Actions release workflow
+
+Maintainers can trigger a manual release through:
+
+```text
+.github/workflows/release.yml
+```
+
+This workflow:
+
+1. Checks out `master` with full git history
+2. Sets up JDK 17
+3. Configures a Git identity for the workflow run
+4. Materializes the signing key from a GitHub secret into a temporary file
+5. Runs `./gradlew release`
+
+The release workflow is intentionally separate from documentation publishing.
+
+Reason:
+
+- a documentation deployment failure should not block a Maven Central release
+- docs can be updated independently of artifact publishing
+- the release commit pushed back to `master` can still trigger the docs workflow naturally
+
+In short:
+
+- release pipeline: artifact publishing and tagging
+- docs pipeline: site publishing
+
+Do not couple Pages deployment into the release workflow unless you have a hard requirement to
+make artifact release and site update succeed or fail as a single unit.
+
 ### Required environment variables
 
 ```bash
@@ -327,6 +430,23 @@ export SIGNING_KEY_PASSWORD=<passphrase>
 export OSSRH_USERNAME=<sonatype-token-username>
 export OSSRH_PASSWORD=<sonatype-token-password>
 ```
+
+### Required GitHub secrets for the release workflow
+
+The GitHub Actions release workflow expects:
+
+```text
+SIGNING_KEY
+SIGNING_KEY_PASSWORD
+OSSRH_USERNAME
+OSSRH_PASSWORD
+```
+
+Notes:
+
+- `SIGNING_KEY` should contain the ASCII-armored private key content itself
+- the workflow writes that secret to a temporary file and exports `SIGNING_KEY_FILE` for Gradle
+- `OSSRH_USERNAME` and `OSSRH_PASSWORD` should be Sonatype token credentials
 
 ### Steps
 

@@ -1,0 +1,62 @@
+import org.openprojectx.karate.gradle.task.RegressionRunTask
+
+plugins {
+    id("org.openprojectx.karate.gradle")
+}
+
+dependencies {
+    testImplementation("com.github.tomakehurst:wiremock-jre8:2.35.2")
+}
+
+// dataset.path is needed by Karate features when run via `./gradlew test`
+// (regressionRun injects it from the workflow config; the test task does not).
+// WireMock itself is started automatically by karate-config.js via WireMockSupport.
+tasks.withType<Test>().configureEach {
+    systemProperty("dataset.path",
+        "${project.projectDir}/src/test/resources/datasets/default")
+}
+
+tasks.named<RegressionRunTask>("regressionRun") {
+    reportingSystemProps.put("karate.cleanup.class", "example.wiremock.support.WireMockSupport")
+}
+
+regression {
+    workflowsDirs.add("src/test/resources/workflows")
+    environmentsDirs.add("src/test/resources/environments")
+    datasetsRootDir.set("src/test/resources/datasets")
+
+    // ── Reporting ─────────────────────────────────────────────────────────────
+    // ReportPortal: streams JUnit5 test results to a ReportPortal server in
+    // real time. Requires a running RP instance.
+    //
+    //   Local server via Docker:
+    //     https://github.com/reportportal/reportportal#deployment
+    //
+    //   Enable:
+    //     1. Set enabled.set(true)
+    //     2. Export RP_ENDPOINT and RP_API_KEY environment variables
+    //     3. ./gradlew :wiremock:test
+    //
+    // regressionRun also executes through a generated JUnit Platform launcher,
+    // so the same listener-based integrations can attach there as well.
+    reporting {
+        reportPortal {
+            enabled.set(false)
+            endpoint.set(providers.environmentVariable("RP_ENDPOINT").orElse("http://localhost:8080"))
+            apiKey.set(providers.environmentVariable("RP_API_KEY"))
+            project.set("karate-wiremock")
+            launch.set("payment-lifecycle")
+            description.set("Karate payment lifecycle tests against WireMock")
+            attributes.set(listOf("service:payments", "transport:wiremock"))
+        }
+    }
+
+    datasets {
+        register("default") {
+            path.set("default")
+        }
+        register("edge-cases") {
+            path.set("advanced/edge-cases")
+        }
+    }
+}

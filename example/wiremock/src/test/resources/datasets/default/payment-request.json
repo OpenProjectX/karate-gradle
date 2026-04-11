@@ -1,0 +1,6 @@
+{
+  "paymentId": "pay-001",
+  "amount": 249.5,
+  "currency": "USD",
+  "accountId": "acc-1001"
+}

@@ -19,6 +19,13 @@ tasks.named<AsciidoctorTask>("asciidoctor") {
         include("user-guide.adoc")
     }
     setOutputDir(layout.buildDirectory.dir("docs").get().asFile)
+    doLast {
+        copy {
+            from(layout.buildDirectory.file("docs/user-guide.html"))
+            into(layout.buildDirectory.dir("docs"))
+            rename { "index.html" }
+        }
+    }
 }
 
 val verifyBasicExampleForRelease by tasks.registering(Exec::class) {

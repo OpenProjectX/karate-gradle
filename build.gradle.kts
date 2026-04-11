@@ -1,6 +1,9 @@
 import net.researchgate.release.ReleaseExtension
 import org.asciidoctor.gradle.jvm.AsciidoctorTask
 
+val ciGradleUserHome: String = System.getenv("GRADLE_USER_HOME")
+    ?: layout.buildDirectory.dir("ci-gradle-home").get().asFile.absolutePath
+
 plugins {
     `maven-publish`
     signing
@@ -48,7 +51,7 @@ val verifyWiremockExampleForRelease by tasks.registering(Exec::class) {
     group = "verification"
     description = "Runs the WireMock standalone example as a release gate"
     workingDir = rootDir
-    environment("GRADLE_USER_HOME", "/data/.gradle")
+//    environment("GRADLE_USER_HOME", ciGradleUserHome)
     environment("JAVA_HOME", System.getProperty("java.home"))
     commandLine(
         "./gradlew",

@@ -129,15 +129,13 @@ abstract class RegressionRunTask @Inject constructor(
         )
 
         logger.lifecycle("Executing workflow '${workflow.name}' | env=$effectiveEnv | dataset=$effectiveDataset | threads=${workflow.parallel}")
-        logger.info("Karate args: ${karateArgs.positionalArgs}")
         logger.info("System properties: ${karateArgs.systemProps}")
 
         val allSystemProps = karateArgs.systemProps + reportingSystemProps.getOrElse(emptyMap())
 
         execOperations.javaexec { spec ->
             spec.classpath(testClasspath)
-            spec.mainClass.set(KarateRunnerAdapter.KARATE_MAIN_CLASS)
-            spec.args(karateArgs.positionalArgs)
+            spec.mainClass.set(KarateRunnerAdapter.LAUNCHER_MAIN_CLASS)
             spec.systemProperties(allSystemProps)
             spec.jvmArgs(karateArgs.jvmArgs)
         }

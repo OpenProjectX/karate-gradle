@@ -31,29 +31,6 @@ abstract class ReportingExtension @Inject constructor(objects: ObjectFactory) {
 
     val reportPortal: ReportPortalConfig = objects.newInstance(ReportPortalConfig::class.java)
 
-    /**
-     * Karate feature path passed to the generated JUnit5 runner.
-     * Used by `./gradlew test` to feed Allure / ReportPortal reporters.
-     * Default: `classpath:features` (standard Karate convention).
-     */
-    val featuresPath: Property<String> = objects.property(String::class.java)
-        .convention("classpath:features")
-
-    /**
-     * Tags to include in the generated runner (e.g. `["@regression", "@smoke"]`).
-     * An empty list means no include filter — all non-excluded tags are run.
-     */
-    val includeTags: org.gradle.api.provider.ListProperty<String> =
-        objects.listProperty(String::class.java).convention(emptyList())
-
-    /**
-     * Tags to exclude from the generated runner.
-     * Default: `["@ignore", "@replay"]` — helpers and dataset-specific replay scenarios
-     * are excluded unless overridden.
-     */
-    val excludeTags: org.gradle.api.provider.ListProperty<String> =
-        objects.listProperty(String::class.java).convention(listOf("@ignore", "@replay"))
-
     fun allure(action: Action<AllureConfig>) = action.execute(allure)
 
     fun reportPortal(action: Action<ReportPortalConfig>) = action.execute(reportPortal)

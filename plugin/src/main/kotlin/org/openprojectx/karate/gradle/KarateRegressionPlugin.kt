@@ -9,6 +9,7 @@ import org.openprojectx.karate.gradle.reporting.AllureConfig
 import org.openprojectx.karate.gradle.reporting.ReportPortalConfig
 import org.openprojectx.karate.gradle.task.GenerateKarateRunnerTask
 import org.openprojectx.karate.gradle.task.RegressionRunTask
+import org.openprojectx.karate.gradle.runner.KarateRunnerAdapter
 
 /**
  * Plugin ID: `org.openprojectx.karate.gradle`
@@ -68,6 +69,8 @@ class KarateRegressionPlugin : Plugin<Project> {
         private const val KARATE_ARTIFACT = "io.karatelabs:karate-junit5"
         private const val ALLURE_ARTIFACT = "io.qameta.allure:allure-junit5"
         private const val REPORT_PORTAL_ARTIFACT = "com.epam.reportportal:agent-java-junit5"
+        // Must stay in sync with JUnit Jupiter version — Platform x.y.z matches Jupiter 5.y.z
+        private const val JUNIT_PLATFORM_LAUNCHER = "org.junit.platform:junit-platform-launcher:1.11.4"
     }
 
     override fun apply(project: Project) {
@@ -79,15 +82,23 @@ class KarateRegressionPlugin : Plugin<Project> {
             project.dependencies.add(config.name, "$KARATE_ARTIFACT:$DEFAULT_KARATE_VERSION")
         }
 
-        // junit-platform-launcher is required at runtime for Gradle to drive JUnit Platform
-        project.dependencies.add("testRuntimeOnly", "org.junit.platform:junit-platform-launcher")
+        // junit-platform-launcher must be on the compile + runtime classpath:
+        //  - compile: KarateJUnit5Launcher.java imports JUnit Platform Launcher API
+        //  - runtime: LauncherFactory.create() discovers TestExecutionListener SPI impls
+        project.dependencies.add("testImplementation", JUNIT_PLATFORM_LAUNCHER)
+
+        // The standard `test` Gradle task is not the entry point — regressionRun is.
+        // Suppress the "no tests discovered" error so `./gradlew check` doesn't fail.
+        project.tasks.withType(Test::class.java).configureEach { test ->
+            test.failOnNoDiscoveredTests.set(false)
+        }
 
         // Create the regression { } extension
         val extension = project.extensions.create("regression", RegressionExtension::class.java)
 
-        // Always generate the JUnit5 runner and wire the test task.
-        // Reporter agents (Allure, ReportPortal) hook in automatically when their deps
-        // are on the classpath — the runner itself is unconditional.
+        // Generate the JUnit5 runner sources that regressionRun forks.
+        // Unconditional — reporter agents hook in automatically when their jars
+        // are on the classpath, no code change needed to toggle them on/off.
         registerKarateRunnerGeneration(project, extension)
 
         // Inject reporting dependencies after the build script has been evaluated
@@ -160,10 +171,9 @@ class KarateRegressionPlugin : Plugin<Project> {
     }
 
     /**
-     * Registers [GenerateKarateRunnerTask] unconditionally and wires its output into
-     * the `test` Java source set. The runner is always generated so that
-     * `./gradlew test` runs Karate features regardless of whether a reporter is active.
-     * Reporter agents hook in automatically when their jars are on the classpath.
+     * Registers [GenerateKarateRunnerTask] and wires its output into the `test`
+     * Java source set so that [RegressionRunTask] can find `KarateJUnit5Launcher`
+     * and `KarateRunner` on the test runtime classpath.
      */
     private fun registerKarateRunnerGeneration(project: Project, extension: RegressionExtension) {
         val outputDir = project.layout.buildDirectory.dir("generated-test-sources/karate-gradle")
@@ -173,22 +183,14 @@ class KarateRegressionPlugin : Plugin<Project> {
             GenerateKarateRunnerTask::class.java,
         ) { task ->
             task.group       = "regression"
-            task.description = "Generates the JUnit5 KarateRunner class that drives ./gradlew test"
-            task.featuresPath.set(extension.reporting.featuresPath)
-            task.includeTags.set(extension.reporting.includeTags)
-            task.excludeTags.set(extension.reporting.excludeTags)
+            task.description = "Generates KarateRunner and KarateJUnit5Launcher for regressionRun"
             task.outputDir.set(outputDir)
         }
 
-        // Add the generated sources directory to the test Java source set
+        // Add generated sources to the test Java source set so they compile with testClasses
         val sourceSets = project.extensions.getByType(SourceSetContainer::class.java)
         sourceSets.named("test") { testSourceSet ->
             testSourceSet.java.srcDir(outputDir)
-        }
-
-        // Enable JUnit Platform on every Test task
-        project.tasks.withType(Test::class.java).configureEach { test ->
-            test.useJUnitPlatform()
         }
 
         // Ensure the runner is generated before test compilation

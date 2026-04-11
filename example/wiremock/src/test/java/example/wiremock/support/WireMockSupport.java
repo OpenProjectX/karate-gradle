@@ -14,12 +14,17 @@ public final class WireMockSupport {
         if (server == null) {
             server = new WireMockServer(WireMockConfiguration.wireMockConfig().dynamicPort());
             server.start();
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                if (server != null && server.isRunning()) {
-                    server.stop();
-                }
-            }));
+            Runtime.getRuntime().addShutdownHook(new Thread(WireMockSupport::stop));
         }
         return server.baseUrl();
+    }
+
+    public static synchronized void stop() {
+        if (server != null) {
+            if (server.isRunning()) {
+                server.stop();
+            }
+            server = null;
+        }
     }
 }

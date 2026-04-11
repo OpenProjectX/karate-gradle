@@ -1,3 +1,5 @@
+import org.openprojectx.karate.gradle.task.RegressionRunTask
+
 plugins {
     id("org.openprojectx.karate.gradle")
 }
@@ -12,6 +14,10 @@ dependencies {
 tasks.withType<Test>().configureEach {
     systemProperty("dataset.path",
         "${project.projectDir}/src/test/resources/datasets/default")
+}
+
+tasks.named<RegressionRunTask>("regressionRun") {
+    reportingSystemProps.put("karate.cleanup.class", "example.wiremock.support.WireMockSupport")
 }
 
 regression {

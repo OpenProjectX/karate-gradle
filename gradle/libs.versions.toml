@@ -14,6 +14,7 @@ snakeyaml = "2.2"
 allure = "2.27.0"
 reportPortalAgent = "5.4.1"
 junitJupiter = "5.11.4"
+junitPlatform = "1.11.4"
 
 [libraries]
 kotlinGradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -32,6 +33,7 @@ reportPortalAgent = { module = "com.epam.reportportal:agent-java-junit5",     ve
 
 junitJupiterApi    = { module = "org.junit.jupiter:junit-jupiter-api",    version.ref = "junitJupiter" }
 junitJupiterEngine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junitJupiter" }
+junitPlatformLauncher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junitPlatform" }
 
 # Libraries can be bundled together for easier import
 [bundles]

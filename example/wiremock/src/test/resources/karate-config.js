@@ -16,6 +16,9 @@ function fn() {
         'Content-Type': 'application/json',
         'X-Tenant': karate.properties['karate.config.tenant'] || 'local-sandbox'
     });
+    karate.configure('afterFeature', function(){ WireMockSupport.stop(); });
+    // karate.configure('logPrettyRequest', true);
+    // karate.configure('logPrettyResponse', true);
 
     karate.log('env:', config.env, '| baseUrl:', config.baseUrl, '| datasetPath:', config.datasetPath);
     return config;

@@ -1,5 +1,5 @@
 = karate-gradle User Guide and Reference
-:toc:
+:toc: left
 :toclevels: 3
 :sectnums:
 :source-highlighter: rouge

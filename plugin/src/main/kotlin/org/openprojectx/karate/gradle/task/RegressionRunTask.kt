@@ -32,6 +32,11 @@ abstract class RegressionRunTask @Inject constructor(
     objects: ObjectFactory,
 ) : DefaultTask() {
 
+    init {
+        // Regression execution is intentionally not incremental; users expect tests to run.
+        outputs.upToDateWhen { false }
+    }
+
     // ── Wired from RegressionExtension at configuration time ──────────────────
 
     /** Directories searched (in order) for workflow config files. */

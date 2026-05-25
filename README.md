@@ -605,7 +605,9 @@ build/reports/regression/
 
 ### Config source priority (across directories)
 
-First directory in `workflowsDirs` / `environmentsDirs` wins.
+Directories in `workflowsDirs` / `environmentsDirs` are merged in order.
+Earlier directories have higher priority, and missing keys can fall back to later directories.
+Within one directory, only the first matching file for the logical name is loaded.
 
 ---
 

@@ -10,7 +10,7 @@ import java.io.File
  * Resolves the effective environment configuration by merging `base` with `<env>` config.
  *
  * Supports multiple [ConfigSource]s: sources are checked in priority order (first wins).
- * Supported file formats per source: `.conf` (HOCON), `.json`, `.properties`.
+ * Supported file formats per source: `.conf`, `.json`, `.yaml`, `.yml`, `.properties`.
  *
  * Merge order: `<env>` overrides `base` (shallow merge via Typesafe Config fallback).
  *

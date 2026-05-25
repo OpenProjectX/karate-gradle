@@ -11,7 +11,7 @@ import java.io.File
  * Loads a [Workflow] from one or more [ConfigSource]s.
  *
  * Sources are checked in priority order: first source wins.
- * Supported file formats per source: `.conf` (HOCON), `.json`, `.properties`.
+ * Supported file formats per source: `.conf`, `.json`, `.yaml`, `.yml`, `.properties`.
  */
 class WorkflowLoader(private val sources: List<ConfigSource>) {
 

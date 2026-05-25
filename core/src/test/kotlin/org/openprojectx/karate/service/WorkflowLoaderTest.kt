@@ -83,6 +83,26 @@ class WorkflowLoaderTest {
     }
 
     @Test
+    fun `prefers yaml over properties within a source directory`() {
+        workflowsDir.resolve("smoke.yaml").writeText(
+            """
+            name: smoke
+            env: yaml-env
+            """.trimIndent()
+        )
+        workflowsDir.resolve("smoke.properties").writeText(
+            """
+            name=smoke
+            env=properties-env
+            """.trimIndent()
+        )
+
+        val workflow = WorkflowLoader(workflowsDir).load("smoke")
+
+        assertEquals("yaml-env", workflow.env)
+    }
+
+    @Test
     fun `loads workflow from json source`() {
         workflowsDir.resolve("contract.json").writeText(
             """

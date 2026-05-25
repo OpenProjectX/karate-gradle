@@ -23,19 +23,17 @@ sealed class ConfigSource {
     class LocalDirectory(val dir: File) : ConfigSource() {
 
         override fun forName(name: String): Config {
-            TYPESAFE_EXTENSIONS.forEach { ext ->
+            EXTENSIONS.forEach { ext ->
                 val file = dir.resolve("$name$ext")
-                if (file.exists()) return ConfigFactory.parseFile(file)
-            }
-            YAML_EXTENSIONS.forEach { ext ->
-                val file = dir.resolve("$name$ext")
-                if (file.exists()) return parseYaml(file)
+                if (file.exists()) {
+                    return if (ext in YAML_EXTENSIONS) parseYaml(file) else ConfigFactory.parseFile(file)
+                }
             }
             return ConfigFactory.empty()
         }
 
         companion object {
-            private val TYPESAFE_EXTENSIONS = listOf(".conf", ".json", ".properties")
+            private val EXTENSIONS = listOf(".conf", ".json", ".yaml", ".yml", ".properties")
             private val YAML_EXTENSIONS     = listOf(".yaml", ".yml")
 
             @Suppress("UNCHECKED_CAST")

@@ -931,6 +931,7 @@ For Logback, place `logback-test.xml` under `src/test/resources`:
 [source,xml]
 ----
 <configuration>
+    <!-- Use <configuration debug="true"> temporarily to see which Logback file was loaded. -->
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
@@ -948,6 +949,20 @@ For Logback, place `logback-test.xml` under `src/test/resources`:
 
 Set `com.intuit.karate` to `DEBUG` only when you need detailed Karate internals. Keeping the
 root logger at `WARN` avoids noisy dependency logs during normal regression runs.
+
+If no `logback-test.xml` or `logback.xml` is found, Logback falls back to its default console
+configuration. That fallback is verbose because the default root logger level is `DEBUG`, so
+examples and real projects should provide their own `logback-test.xml`.
+
+To inspect which Logback config is actually used, temporarily change the opening tag to:
+
+[source,xml]
+----
+<configuration debug="true">
+----
+
+Logback will print internal status messages during startup, including the discovered config
+resource and its classpath location. Revert this after troubleshooting to avoid noisy CI logs.
 
 === Request and response detail
 

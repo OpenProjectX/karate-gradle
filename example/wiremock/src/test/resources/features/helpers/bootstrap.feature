@@ -9,13 +9,19 @@ Feature: WireMock bootstrap
 
     * def account = read('file:' + datasetPath + '/account-1001.json')
     * def paymentRequest = read('file:' + datasetPath + '/payment-request.json')
+    * def bearerToken = 'Bearer ' + authToken
 
     * def accountMapping =
     """
     {
       request: {
         method: 'GET',
-        urlPathPattern: '/accounts/([^/]+)'
+        urlPathPattern: '/accounts/([^/]+)',
+        headers: {
+          Authorization: {
+            equalTo: '#(bearerToken)'
+          }
+        }
       },
       response: {
         status: 200,
@@ -36,7 +42,12 @@ Feature: WireMock bootstrap
     {
       request: {
         method: 'POST',
-        url: '/payments'
+        url: '/payments',
+        headers: {
+          Authorization: {
+            equalTo: '#(bearerToken)'
+          }
+        }
       },
       response: {
         status: 202,
@@ -64,7 +75,12 @@ Feature: WireMock bootstrap
       newScenarioState: 'APPROVED_READY',
       request: {
         method: 'GET',
-        url: '#("/payments/" + paymentRequest.paymentId + "/status")'
+        url: '#("/payments/" + paymentRequest.paymentId + "/status")',
+        headers: {
+          Authorization: {
+            equalTo: '#(bearerToken)'
+          }
+        }
       },
       response: {
         status: 200,
@@ -90,7 +106,12 @@ Feature: WireMock bootstrap
       requiredScenarioState: 'APPROVED_READY',
       request: {
         method: 'GET',
-        url: '#("/payments/" + paymentRequest.paymentId + "/status")'
+        url: '#("/payments/" + paymentRequest.paymentId + "/status")',
+        headers: {
+          Authorization: {
+            equalTo: '#(bearerToken)'
+          }
+        }
       },
       response: {
         status: 200,

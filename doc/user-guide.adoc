@@ -903,6 +903,80 @@ The plugin may also forward:
 ./gradlew regressionRun -Dkarate.user.vmProperty1=vm1 -Pkarate.user.gradleProperty1=test1
 ----
 
+== Logging
+
+`regressionRun` forks a separate JVM for Karate. There are two logging layers:
+
+* Gradle task logs from the plugin
+* Karate runtime logs from the forked JVM
+
+=== Gradle task logs
+
+Use normal Gradle flags to control plugin-side task logging:
+
+[source,bash]
+----
+./gradlew regressionRun --info
+./gradlew regressionRun --debug
+----
+
+This affects messages emitted by the Gradle task, such as workflow selection and task execution
+details. It does not change Karate's internal logger level.
+
+=== Karate runtime logs
+
+Control Karate and library log levels with a standard logging config on the test runtime classpath.
+For Logback, place `logback-test.xml` under `src/test/resources`:
+
+[source,xml]
+----
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="com.intuit.karate" level="INFO"/>
+    <logger name="org.openprojectx.karate" level="INFO"/>
+
+    <root level="WARN">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>
+----
+
+Set `com.intuit.karate` to `DEBUG` only when you need detailed Karate internals. Keeping the
+root logger at `WARN` avoids noisy dependency logs during normal regression runs.
+
+=== Request and response detail
+
+Karate request and response printing is controlled in `karate-config.js`, not by the plugin:
+
+[source,javascript]
+----
+function fn() {
+    karate.configure('logPrettyRequest', true);
+    karate.configure('logPrettyResponse', true);
+    return {};
+}
+----
+
+Enable these only when needed. Request and response logs can include headers, payloads, or tokens
+if the feature files send them.
+
+=== Pass-through properties and logging
+
+The `karate.user.*` pass-through is intended for user test configuration:
+
+[source,bash]
+----
+./gradlew regressionRun -Dkarate.user.flag=true
+----
+
+It is not the preferred way to configure logging frameworks. Use `logback-test.xml` or the
+logging framework's own supported configuration mechanism for log levels.
+
 == Reporting Guide
 
 === Allure

@@ -330,6 +330,7 @@ All parameters are optional; workflow file values are used as defaults.
 | environment   | `-Penv=`      | Override workflow's `env` field |
 | dataset       | `-Pdataset=`  | Override workflow's `dataset`   |
 | commit ref    | `-Pcommit=`   | Set `karate.commit` sys prop    |
+| user property | `-Pkarate.user.<key>=` / `-Dkarate.user.<key>=` | Forward unchanged to Karate |
 
 ---
 
@@ -343,7 +344,8 @@ function fn() {
     var config = {
         workflow:    karate.properties['karate.workflow'],
         baseUrl:     karate.properties['karate.config.baseUrl'],
-        datasetPath: karate.properties['dataset.path']
+        datasetPath: karate.properties['dataset.path'],
+        userFlag:    karate.properties['karate.user.flag']
     };
     return config;
 }
@@ -352,8 +354,13 @@ function fn() {
 ```gherkin
 # Reading dataset input
 * def datasetPath = karate.properties['dataset.path']
+* def userFlag = karate.properties['karate.user.flag']
 * def input = read('file:' + datasetPath + '/case.json')
 ```
+
+Only `karate.user.*` custom properties are passed through. The prefix is kept, so
+`-Dkarate.user.flag=true` is read as `karate.properties['karate.user.flag']`.
+Unprefixed `-P` / `-D` properties are not forwarded to the forked Karate JVM.
 
 ---
 

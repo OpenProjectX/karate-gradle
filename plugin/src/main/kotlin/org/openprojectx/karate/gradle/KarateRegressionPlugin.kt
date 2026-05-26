@@ -7,9 +7,10 @@ import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.testing.Test
 import org.openprojectx.karate.gradle.reporting.AllureConfig
 import org.openprojectx.karate.gradle.reporting.ReportPortalConfig
+import org.openprojectx.karate.gradle.runner.KaratePassThroughProperties
+import org.openprojectx.karate.gradle.runner.KarateRunnerAdapter
 import org.openprojectx.karate.gradle.task.GenerateKarateRunnerTask
 import org.openprojectx.karate.gradle.task.RegressionRunTask
-import org.openprojectx.karate.gradle.runner.KarateRunnerAdapter
 
 /**
  * Plugin ID: `org.openprojectx.karate.gradle`
@@ -151,6 +152,13 @@ class KarateRegressionPlugin : Plugin<Project> {
                 providers.provider {
                     buildReportingProps(extension, layout)
                 }
+            )
+
+            task.userKarateSystemProps.set(
+                providers.gradlePropertiesPrefixedBy(KaratePassThroughProperties.PREFIX)
+                    .zip(providers.systemPropertiesPrefixedBy(KaratePassThroughProperties.PREFIX)) { gradleProps, systemProps ->
+                        gradleProps + systemProps
+                    }
             )
 
             // Wire test classpath from the test source set

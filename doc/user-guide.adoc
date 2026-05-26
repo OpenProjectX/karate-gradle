@@ -437,8 +437,8 @@ These are the config sources supported by the public plugin contract today:
 |Resolve a logical dataset name to a local filesystem directory
 
 |Gradle properties
-|`-Pworkflow`, `-Penv`, `-Pdataset`, `-Pcommit`
-|Select or override the run inputs
+|`-Pworkflow`, `-Penv`, `-Pdataset`, `-Pcommit`, `-Pkarate.user.*`
+|Select or override the run inputs; pass user-owned Karate properties
 
 |Reporting DSL
 |`reporting { }`
@@ -497,6 +497,8 @@ Run input priority:
 . `-Penv` overrides the workflow's `env` field
 . `-Pdataset` overrides the workflow's `dataset` field
 . `-Pcommit` is optional and is forwarded as `karate.commit`
+. `-Pkarate.user.*` and `-Dkarate.user.*` are forwarded unchanged to Karate
+. If the same `karate.user.*` key is supplied by both `-P` and `-D`, the `-D` value wins
 
 Workflow and environment directory priority:
 
@@ -549,6 +551,9 @@ These are the supported ways to read configuration during a Karate run:
 |`karate.properties['karate.config.<key>']`
 |Read flat scalar environment config forwarded by the plugin
 
+|`karate.properties['karate.user.<key>']`
+|Read explicit user-owned pass-through properties from `-Pkarate.user.<key>` or `-Dkarate.user.<key>`
+
 |`java.lang.System.getenv('NAME')`
 |Read secrets or process environment values directly
 |===
@@ -564,6 +569,7 @@ function fn() {
         datasetPath: karate.properties['dataset.path'],
         baseUrl: karate.properties['karate.config.baseUrl'],
         tenant: karate.properties['karate.config.tenant'] || 'public',
+        userFlag: karate.properties['karate.user.flag'],
         apiToken: java.lang.System.getenv('API_TOKEN')
     };
 
@@ -574,6 +580,12 @@ function fn() {
 Secrets are intentionally not part of the plugin config contract. Keep them out of workflow and
 environment files, and read them from environment variables or a user-managed secret provider at
 runtime.
+
+User-owned pass-through properties must use the `karate.user.` prefix. The prefix is kept in
+Karate, so `-Dkarate.user.flag=true` is read as
+`karate.properties['karate.user.flag']`. Unprefixed `-P` and `-D` properties are not forwarded.
+Do not use plugin-owned keys such as `karate.env`, `karate.workflow`, `karate.config.*`, or
+`karate.runner.*` for custom values.
 
 == Workflow Definition Reference
 
@@ -870,6 +882,14 @@ The plugin may also forward:
 |`commit`
 |`-Pcommit=abc123`
 |Optional commit identifier forwarded as `karate.commit`.
+
+|`karate.user.<key>`
+|`-Pkarate.user.flag=true`
+|User-owned property forwarded unchanged to Karate.
+
+|`karate.user.<key>`
+|`-Dkarate.user.flag=true`
+|User-owned JVM system property forwarded unchanged to Karate. Wins over `-P` for the same key.
 |===
 
 === Common commands
@@ -880,6 +900,7 @@ The plugin may also forward:
 ./gradlew regressionRun -Pworkflow=regression -Penv=staging
 ./gradlew regressionRun -Pworkflow=regression -Pdataset=edge-cases
 ./gradlew regressionRun -Pworkflow=regression -Penv=prod -Pdataset=default -Pcommit=abc123
+./gradlew regressionRun -Dkarate.user.vmProperty1=vm1 -Pkarate.user.gradleProperty1=test1
 ----
 
 == Reporting Guide

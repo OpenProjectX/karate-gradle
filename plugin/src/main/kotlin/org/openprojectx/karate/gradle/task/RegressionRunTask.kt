@@ -87,6 +87,12 @@ abstract class RegressionRunTask @Inject constructor(
     @get:Input
     abstract val reportingSystemProps: MapProperty<String, String>
 
+    /**
+     * User-owned `karate.user.*` Gradle and JVM properties forwarded unchanged to Karate.
+     */
+    @get:Input
+    abstract val userKarateSystemProps: MapProperty<String, String>
+
     // ── Consumer project's test classpath ─────────────────────────────────────
 
     @get:InputFiles
@@ -136,7 +142,10 @@ abstract class RegressionRunTask @Inject constructor(
         logger.lifecycle("Executing workflow '${workflow.name}' | env=$effectiveEnv | dataset=$effectiveDataset | threads=${workflow.parallel}")
         logger.info("System properties: ${karateArgs.systemProps}")
 
-        val allSystemProps = karateArgs.systemProps + reportingSystemProps.getOrElse(emptyMap())
+        val allSystemProps =
+            userKarateSystemProps.getOrElse(emptyMap()) +
+                karateArgs.systemProps +
+                reportingSystemProps.getOrElse(emptyMap())
 
         execOperations.javaexec { spec ->
             spec.classpath(testClasspath)

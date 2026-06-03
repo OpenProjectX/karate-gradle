@@ -24,6 +24,7 @@ class KarateRunnerAdapterTest {
                 "connectTimeout" to 2500,
                 "tenant" to "sandbox"
             ),
+            datasetName = "default",
             datasetPath = "/tmp/datasets/default",
             outputDir = "/tmp/reports",
             commitHash = "abc123"
@@ -31,6 +32,7 @@ class KarateRunnerAdapterTest {
 
         assertEquals("staging", args.systemProps["karate.env"])
         assertEquals("contract", args.systemProps["karate.workflow"])
+        assertEquals("default", args.systemProps["karate.dataset"])
         assertEquals("https://example.test", args.systemProps["karate.config.baseUrl"])
         assertEquals("2500", args.systemProps["karate.config.connectTimeout"])
         assertEquals("sandbox", args.systemProps["karate.config.tenant"])

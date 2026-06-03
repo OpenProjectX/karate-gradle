@@ -134,6 +134,7 @@ abstract class RegressionRunTask @Inject constructor(
             workflow    = workflow,
             env         = effectiveEnv,
             envConfig   = envConfig,
+            datasetName = effectiveDataset,
             datasetPath = datasetPath,
             outputDir   = reportsOutput.absolutePath,
             commitHash  = commitHash.orNull,

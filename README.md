@@ -336,31 +336,27 @@ All parameters are optional; workflow file values are used as defaults.
 
 ## Accessing Config in Features
 
-System properties are forwarded to Karate automatically:
+The generated runner injects plugin-resolved context into every scenario as `karateGradle`:
 
-```javascript
-// karate-config.js
-function fn() {
-    var config = {
-        workflow:    karate.properties['karate.workflow'],
-        baseUrl:     karate.properties['karate.config.baseUrl'],
-        datasetPath: karate.properties['dataset.path'],
-        userFlag:    karate.properties['karate.user.flag']
-    };
-    return config;
-}
+```gherkin
+* url karateGradle.config.baseUrl
+* def datasetPath = karateGradle.dataset.path
+* def workflow = karateGradle.workflow.name
+* def userFlag = karateGradle.user.flag
 ```
 
 ```gherkin
 # Reading dataset input
-* def datasetPath = karate.properties['dataset.path']
-* def userFlag = karate.properties['karate.user.flag']
+* def datasetPath = karateGradle.dataset.path
 * def input = read('file:' + datasetPath + '/case.json')
 ```
 
 Only `karate.user.*` custom properties are passed through. The prefix is kept, so
-`-Dkarate.user.flag=true` is read as `karate.properties['karate.user.flag']`.
+`-Dkarate.user.flag=true` is read as `karateGradle.user.flag`.
 Unprefixed `-P` / `-D` properties are not forwarded to the forked Karate JVM.
+
+`karate-config.js` remains fully user-owned for dynamic behavior such as auth, default headers,
+local test-server startup, or computed values.
 
 ---
 

@@ -466,11 +466,11 @@ not public plugin behavior.
 
 |Environment files
 |Plugin
-|Loaded from `environmentsDirs`; forwarded as `karate.config.<key>`
+|Loaded from `environmentsDirs`; exposed as `karateGradle.config.<key>`
 
 |Dataset selection
 |Plugin
-|Resolved to `dataset.path`
+|Resolved to `karateGradle.dataset.path`
 
 |`karate.env`
 |Karate, selected by plugin
@@ -478,11 +478,15 @@ not public plugin behavior.
 
 |`karate.properties['...']`
 |Karate
-|How Karate reads JVM system properties injected by the plugin or user
+|Backing compatibility channel for JVM system properties injected by the plugin or user
+
+|`karateGradle`
+|Plugin
+|Injected into every scenario by the generated runner; direct way to read plugin-resolved context
 
 |`karate-config.js`
 |Karate/user
-|User-owned bootstrap file that reads plugin values and builds the final Karate config object
+|User-owned bootstrap file for suite behavior such as auth, dynamic headers, and local servers
 
 |Environment variables
 |User/runtime
@@ -518,7 +522,8 @@ Environment merge priority:
 
 . `base` is loaded first as shared defaults
 . The selected env, such as `local`, `staging`, or `prod`, overrides `base`
-. The merged result is flattened and forwarded as `karate.config.<key>` system properties
+. The merged result is exposed as `karateGradle.config.<key>`
+. The same values are also forwarded as `karate.config.<key>` system properties for compatibility
 
 Dataset priority:
 
@@ -536,42 +541,72 @@ These are the supported ways to read configuration during a Karate run:
 |===
 |Pattern |Use
 
-|`karate.env`
-|Read the selected Karate environment name
+|`karateGradle.env`
+|Read the environment selected by the plugin
 
-|`karate.properties['karate.workflow']`
+|`karateGradle.workflow.name`
 |Read the resolved workflow name
 
-|`karate.properties['dataset.path']`
+|`karateGradle.dataset.name`
+|Read the resolved logical dataset name
+
+|`karateGradle.dataset.path`
 |Read the resolved dataset directory
+
+|`karateGradle.config.<key>`
+|Read merged flat scalar environment config
+
+|`karateGradle.user.<key>`
+|Read explicit user-owned pass-through properties from `-Pkarate.user.<key>` or `-Dkarate.user.<key>`
+
+|`karate.env`
+|Read the selected Karate environment name from Karate itself
+
+|`karate.properties['karate.workflow']`
+|Compatibility path for the resolved workflow name
+
+|`karate.properties['dataset.path']`
+|Compatibility path for the resolved dataset directory
 
 |`karate.properties['karate.commit']`
 |Read the optional commit identifier
 
 |`karate.properties['karate.config.<key>']`
-|Read flat scalar environment config forwarded by the plugin
+|Compatibility path for flat scalar environment config
 
 |`karate.properties['karate.user.<key>']`
-|Read explicit user-owned pass-through properties from `-Pkarate.user.<key>` or `-Dkarate.user.<key>`
+|Compatibility path for explicit user-owned pass-through properties
 
 |`java.lang.System.getenv('NAME')`
 |Read secrets or process environment values directly
 |===
 
-Recommended `karate-config.js` shape:
+`karateGradle` is injected by the generated runner before scenario steps run. Users do not need
+`karate-config.js` just to expose workflow, dataset, or environment config to feature files.
+
+Example feature usage:
+
+[source,gherkin]
+----
+* url karateGradle.config.baseUrl
+* def datasetPath = karateGradle.dataset.path
+* def tenant = karateGradle.config.tenant
+* def userFlag = karateGradle.user.flag
+----
+
+Use `karate-config.js` for user-owned runtime behavior such as auth, headers, local services, or
+computed defaults:
 
 [source,javascript]
 ----
 function fn() {
     var config = {
-        env: karate.env || 'local',
-        workflow: karate.properties['karate.workflow'],
-        datasetPath: karate.properties['dataset.path'],
-        baseUrl: karate.properties['karate.config.baseUrl'],
-        tenant: karate.properties['karate.config.tenant'] || 'public',
-        userFlag: karate.properties['karate.user.flag'],
         apiToken: java.lang.System.getenv('API_TOKEN')
     };
+
+    karate.configure('headers', {
+        Authorization: 'Bearer ' + config.apiToken
+    });
 
     return config;
 }

@@ -2,6 +2,7 @@ Feature: User API
 
   Background:
     * url baseUrl
+    * match karateGradle.dataset.path == datasetPath
     * configure connectTimeout = karate.properties['karate.config.connectTimeout'] || 3000
     * configure readTimeout = karate.properties['karate.config.readTimeout'] || 5000
     * configure retry = { count: 2, interval: 250 }

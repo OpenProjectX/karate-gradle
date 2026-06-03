@@ -29,6 +29,7 @@ object KarateRunnerAdapter {
         workflow: Workflow,
         env: String,
         envConfig: Map<String, Any>,
+        datasetName: String,
         datasetPath: String,
         outputDir: String,
         commitHash: String? = null,
@@ -37,6 +38,7 @@ object KarateRunnerAdapter {
             // Karate runtime config
             "karate.env"      to env,
             "karate.workflow" to workflow.name,
+            "karate.dataset"  to datasetName,
             "dataset.path"    to datasetPath,
 
             // KarateRunner reads these to build the Karate.run(...) call
